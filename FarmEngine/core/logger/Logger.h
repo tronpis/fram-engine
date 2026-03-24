@@ -105,29 +105,17 @@ public:
      */
     template<typename... Args>
     static void log(LogLevel level, const std::string& format, Args&&... args) {
-        // Thread-safe check: don't log if not initialized
-        if (!s_initialized.load() || !s_instance) {
+        // Thread-safe check: acquire lock first to protect s_instance access
+        std::lock_guard<std::mutex> lock(s_mutex);
+        
+        if (!s_initialized.load() || !s_instance || !s_instance->initialized) {
             return;
         }
         
-        // Check log level - capture level value while holding no lock for performance
-        // s_instance is safe to access here because we checked s_initialized and s_instance
-        // is only destroyed after s_initialized is set to false. However, config.level
-        // could be modified by setLevel() concurrently, so we use a local copy approach.
-        // The worst case is a stale read which just means one extra log call, not UB.
-        std::lock_guard<std::mutex> lock(s_instance->mutex);
-        LoggerImpl* instance = s_instance.get();
-        if (!instance || !instance->initialized) {
-            return;
-        }
-        LogLevel currentLevel = instance->config.level;
+        // Check log level while holding the lock
+        LogLevel currentLevel = s_instance->config.level;
         if (level < currentLevel) {
             return;  // Below minimum log level
-        }
-        
-        // Double-check initialized flag after accessing instance
-        if (!instance->initialized) {
-            return;
         }
         
         // Use fmt::format for proper variadic formatting
@@ -198,6 +186,7 @@ private:
     
     static std::unique_ptr<class LoggerImpl> s_instance;
     static std::atomic<bool> s_initialized;
+    static std::mutex s_mutex;
 };
 
 } // namespace farm
