@@ -331,7 +331,7 @@ class CropSystem : public System {
 
 ---
 
-## ⚠️ Advertencia Brutal
+## ⚠️ Consideraciones de Desarrollo
 
 Crear un engine Vulkan completo puede tomar:
 - **Mínimo:** 150,000 líneas de código
