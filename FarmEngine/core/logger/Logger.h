@@ -9,7 +9,7 @@
 #include <fstream>
 #include <mutex>
 #include <fmt/format.h>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 namespace farm {
 
