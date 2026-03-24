@@ -115,7 +115,11 @@ public:
         // is only destroyed after s_initialized is set to false. However, config.level
         // could be modified by setLevel() concurrently, so we use a local copy approach.
         // The worst case is a stale read which just means one extra log call, not UB.
+        std::lock_guard<std::mutex> lock(s_instance->mutex);
         LoggerImpl* instance = s_instance.get();
+        if (!instance || !instance->initialized) {
+            return;
+        }
         LogLevel currentLevel = instance->config.level;
         if (level < currentLevel) {
             return;  // Below minimum log level
