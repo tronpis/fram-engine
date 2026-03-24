@@ -87,14 +87,14 @@ bool Logger::isInitialized() {
 }
 
 void Logger::logMessage(LogLevel level, const std::string& message) {
-    // Thread-safe check: s_instance access is protected by s_mutex held by caller
-    // Acquire s_instance->mutex for the actual logging operations
+    // Note: s_mutex is already held by the caller (log template method, init, shutdown).
+    // s_mutex protects s_instance lifetime, so this check is safe.
     
-    // s_mutex protects s_instance lifetime, so this check is safe
     if (!s_instance || !s_instance->initialized) {
         return;
     }
     
+    // Acquire s_instance->mutex to protect access to s_instance's internal members
     std::lock_guard<std::mutex> lock(s_instance->mutex);
     
     // Build the log line
