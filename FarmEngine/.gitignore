@@ -1,0 +1,61 @@
+# Build directories
+build/
+cmake-build-*/
+bin/
+obj/
+out/
+
+# Compiled files
+*.o
+*.so
+*.a
+*.lib
+*.dll
+*.exe
+*.dylib
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Shaders (compiled)
+shaders/*.spv
+
+# Assets (large binary files)
+assets/textures/*
+assets/meshes/*
+!assets/textures/.gitkeep
+!assets/meshes/.gitkeep
+
+# Configuration (local overrides)
+config.local.json
+settings.local.ini
+
+# Testing
+coverage/
+test_results/
+*.gcda
+*.gcno
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Documentation build
+docs/_build/
+
+# Package files
+*.tar.gz
+*.zip
+*.deb
+*.rpm
