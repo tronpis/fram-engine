@@ -6,6 +6,9 @@
 #include <functional>
 #include <unordered_map>
 #include <atomic>
+#include <fstream>
+#include <mutex>
+#include <fmt/format.h>
 
 namespace farm {
 
@@ -31,6 +34,26 @@ struct LoggerConfig {
     std::string logFile = "farmengine.log";
     bool coloredOutput = true;
     bool timestamp = true;
+};
+
+/**
+ * @brief Internal implementation class for Logger
+ * 
+ * This class holds the actual logger state and is defined here to allow
+ * the template log() function in Logger to access its members safely.
+ */
+class LoggerImpl {
+public:
+    LoggerConfig config;
+    std::ofstream fileStream;
+    std::mutex mutex;
+    bool initialized = false;
+    
+    ~LoggerImpl() {
+        if (fileStream.is_open()) {
+            fileStream.close();
+        }
+    }
 };
 
 /**
@@ -83,19 +106,31 @@ public:
     template<typename... Args>
     static void log(LogLevel level, const std::string& format, Args&&... args) {
         // Thread-safe check: don't log if not initialized
-        if (!s_initialized.load() || !s_instance || !s_instance->initialized) {
+        if (!s_initialized.load() || !s_instance) {
             return;
         }
         
-        if (level < s_instance->config.level) {
+        // Check log level - capture level value while holding no lock for performance
+        // s_instance is safe to access here because we checked s_initialized and s_instance
+        // is only destroyed after s_initialized is set to false. However, config.level
+        // could be modified by setLevel() concurrently, so we use a local copy approach.
+        // The worst case is a stale read which just means one extra log call, not UB.
+        LoggerImpl* instance = s_instance.get();
+        LogLevel currentLevel = instance->config.level;
+        if (level < currentLevel) {
             return;  // Below minimum log level
         }
         
-        // Use std::format for proper variadic formatting (C++20)
+        // Double-check initialized flag after accessing instance
+        if (!instance->initialized) {
+            return;
+        }
+        
+        // Use fmt::format for proper variadic formatting
         std::string message;
         try {
-            message = std::vformat(format, std::make_format_args(args...));
-        } catch (const std::format_error& e) {
+            message = fmt::format(format, std::forward<Args>(args)...);
+        } catch (const fmt::format_error& e) {
             // Fallback: use format string as-is if formatting fails
             message = format + std::string(" [format error: ") + e.what() + "]";
         }

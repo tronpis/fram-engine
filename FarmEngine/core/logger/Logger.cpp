@@ -1,31 +1,13 @@
 #include "Logger.h"
 
 #include <iostream>
-#include <fstream>
-#include <mutex>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <cstring>
 #include <ctime>
-#include <format>
 
 namespace farm {
-
-// Forward declaration of implementation
-class LoggerImpl {
-public:
-    LoggerConfig config;
-    std::ofstream fileStream;
-    std::mutex mutex;
-    bool initialized = false;
-    
-    ~LoggerImpl() {
-        if (fileStream.is_open()) {
-            fileStream.close();
-        }
-    }
-};
 
 std::unique_ptr<LoggerImpl> Logger::s_instance;
 std::atomic<bool> Logger::s_initialized{false};
