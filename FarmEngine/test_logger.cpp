@@ -1,5 +1,5 @@
 #include "core/logger/Logger.h"
-#include <iostream>
+#include "core/logger/Logger.h"
 
 int main() {
     farm::Logger::init();
