@@ -1,5 +1,4 @@
 #include "core/logger/Logger.h"
-#include "core/logger/Logger.h"
 #include "plugins/IPlugin.h"
 #include "platform/window/Window.h"
 #include "renderer/Renderer.h"
@@ -39,12 +38,16 @@ bool Engine::init(const std::string& config) {
     
     // Create job system for multithreading
     m_jobSystem = std::make_unique<JobSystem>();
-    m_jobSystem->init();
+    if (!m_jobSystem->init()) {
+        FARM_LOG_ERROR("Failed to initialize job system");
+        initializationFailed = true;
+    }
     
     // Create window
     m_window = std::make_unique<Window>();
     if (!m_window->init("FarmEngine", 1920, 1080)) {
         FARM_LOG_ERROR("Failed to create window");
+        m_window.reset();  // Clean up invalid window immediately
         initializationFailed = true;
     }
     
@@ -140,10 +143,7 @@ bool Engine::init(const std::string& config) {
             m_renderer.reset();
         }
         
-        if (m_window) {
-            m_window->shutdown();
-            m_window.reset();
-        }
+        // Window already reset on failure, no need to shutdown
         
         if (m_jobSystem) {
             m_jobSystem->shutdown();
@@ -356,8 +356,6 @@ void Engine::render() {
 }
 
 void Engine::registerPlugin(const std::string& name, std::unique_ptr<IPlugin> plugin) {
-    FARM_LOG_INFO("Registered plugin: {}", name);
-    
     if (!plugin) {
         FARM_LOG_ERROR("Attempted to register null plugin: {}", name);
         return;
@@ -371,6 +369,7 @@ void Engine::registerPlugin(const std::string& name, std::unique_ptr<IPlugin> pl
     
     // Store plugin for later use
     m_plugins.emplace_back(std::move(plugin));
+    FARM_LOG_INFO("Registered plugin: {}", name);
     FARM_LOG_DEBUG("Plugin '{}' initialized and registered successfully", name);
 }
 

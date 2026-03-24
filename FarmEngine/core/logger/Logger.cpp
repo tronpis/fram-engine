@@ -259,35 +259,69 @@ std::string Logger::getColorCode(LogLevel level) {
 }
 
 // Explicit template instantiations for common types
+// Note: Add more instantiations here when using FARM_LOG_* with new types
+
+// Generic log function instantiations
 template void Logger::log<std::string>(LogLevel, const std::string&, std::string&&);
 template void Logger::log<const char*>(LogLevel, const std::string&, const char*&&);
 template void Logger::log<int>(LogLevel, const std::string&, int&&);
 template void Logger::log<double>(LogLevel, const std::string&, double&&);
 template void Logger::log<float>(LogLevel, const std::string&, float&&);
+template void Logger::log<long>(LogLevel, const std::string&, long&&);
+template void Logger::log<unsigned int>(LogLevel, const std::string&, unsigned int&&);
+template void Logger::log<unsigned long>(LogLevel, const std::string&, unsigned long&&);
+template void Logger::log<bool>(LogLevel, const std::string&, bool&&);
+template void Logger::log<char>(LogLevel, const std::string&, char&&);
 
+// Trace level instantiations
 template void Logger::trace<std::string>(const std::string&, std::string&&);
 template void Logger::trace<const char*>(const std::string&, const char*&&);
 template void Logger::trace<int>(const std::string&, int&&);
+template void Logger::trace<double>(const std::string&, double&&);
+template void Logger::trace<float>(const std::string&, float&&);
 
+// Debug level instantiations
 template void Logger::debug<std::string>(const std::string&, std::string&&);
 template void Logger::debug<const char*>(const std::string&, const char*&&);
 template void Logger::debug<int>(const std::string&, int&&);
+template void Logger::debug<double>(const std::string&, double&&);
+template void Logger::debug<float>(const std::string&, float&&);
 
+// Info level instantiations
 template void Logger::info<std::string>(const std::string&, std::string&&);
 template void Logger::info<const char*>(const std::string&, const char*&&);
 template void Logger::info<int>(const std::string&, int&&);
 template void Logger::info<double>(const std::string&, double&&);
+template void Logger::info<float>(const std::string&, float&&);
+template void Logger::info<long>(const std::string&, long&&);
+template void Logger::info<unsigned int>(const std::string&, unsigned int&&);
+template void Logger::info<unsigned long>(const std::string&, unsigned long&&);
 
+// Warn level instantiations
 template void Logger::warn<std::string>(const std::string&, std::string&&);
 template void Logger::warn<const char*>(const std::string&, const char*&&);
 template void Logger::warn<int>(const std::string&, int&&);
+template void Logger::warn<double>(const std::string&, double&&);
+template void Logger::warn<float>(const std::string&, float&&);
 
+// Error level instantiations
 template void Logger::error<std::string>(const std::string&, std::string&&);
 template void Logger::error<const char*>(const std::string&, const char*&&);
 template void Logger::error<int>(const std::string&, int&&);
+template void Logger::error<double>(const std::string&, double&&);
+template void Logger::error<float>(const std::string&, float&&);
+template void Logger::error<long>(const std::string&, long&&);
+template void Logger::error<unsigned int>(const std::string&, unsigned int&&);
+template void Logger::error<unsigned long>(const std::string&, unsigned long&&);
 
+// Fatal level instantiations
 template void Logger::fatal<std::string>(const std::string&, std::string&&);
 template void Logger::fatal<const char*>(const std::string&, const char*&&);
 template void Logger::fatal<int>(const std::string&, int&&);
+template void Logger::fatal<double>(const std::string&, double&&);
+template void Logger::fatal<float>(const std::string&, float&&);
+template void Logger::fatal<long>(const std::string&, long&&);
+template void Logger::fatal<unsigned int>(const std::string&, unsigned int&&);
+template void Logger::fatal<unsigned long>(const std::string&, unsigned long&&);
 
 } // namespace farm
