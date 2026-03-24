@@ -5,6 +5,7 @@
 #include <memory>
 #include <functional>
 #include <unordered_map>
+#include <atomic>
 
 namespace farm {
 
@@ -69,6 +70,11 @@ public:
     static LogLevel getLevel();
     
     /**
+     * @brief Check if logger is initialized
+     */
+    static bool isInitialized();
+    
+    /**
      * @brief Log a message with format
      * @param level Log level
      * @param format Format string (fmt-like)
@@ -120,6 +126,7 @@ private:
     static std::string getColorCode(LogLevel level);
     
     static std::unique_ptr<class LoggerImpl> s_instance;
+    static std::atomic<bool> s_initialized;
 };
 
 } // namespace farm

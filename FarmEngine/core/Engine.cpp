@@ -1,13 +1,5 @@
-#include "Engine.h"
-
 #include "core/logger/Logger.h"
-#include "platform/window/Window.h"
-#include "renderer/Renderer.h"
-#include "world/World.h"
-#include "simulation/Simulation.h"
-#include "physics/PhysicsWorld.h"
-#include "audio/AudioSystem.h"
-#include "core/jobsystem/JobSystem.h"
+#include "plugins/IPlugin.h"
 
 #ifdef FARMENGINE_WITH_EDITOR
 #include "tools/editor/Editor.h"
@@ -35,6 +27,7 @@ bool Engine::init(const std::string& config) {
     
     FARM_LOG_INFO("Initializing engine subsystems...");
     
+    bool initializationFailed = false;
     
     // Create job system for multithreading
     m_jobSystem = std::make_unique<JobSystem>();
@@ -44,50 +37,121 @@ bool Engine::init(const std::string& config) {
     m_window = std::make_unique<Window>();
     if (!m_window->init("FarmEngine", 1920, 1080)) {
         FARM_LOG_ERROR("Failed to create window");
-        return false;
+        initializationFailed = true;
     }
     
-    // Create renderer
-    m_renderer = std::make_unique<Renderer>();
-    if (!m_renderer->init(*m_window)) {
-        FARM_LOG_ERROR("Failed to initialize renderer");
-        return false;
+    // Create renderer (only if window succeeded)
+    if (!initializationFailed) {
+        m_renderer = std::make_unique<Renderer>();
+        if (!m_renderer->init(*m_window)) {
+            FARM_LOG_ERROR("Failed to initialize renderer");
+            initializationFailed = true;
+        }
     }
     
-    // Create world
-    m_world = std::make_unique<World>();
-    if (!m_world->init()) {
-        FARM_LOG_ERROR("Failed to initialize world");
-        return false;
+    // Create world (only if previous steps succeeded)
+    if (!initializationFailed) {
+        m_world = std::make_unique<World>();
+        if (!m_world->init()) {
+            FARM_LOG_ERROR("Failed to initialize world");
+            initializationFailed = true;
+        }
     }
     
-    // Create simulation
-    m_simulation = std::make_unique<Simulation>();
-    if (!m_simulation->init(*m_world)) {
-        FARM_LOG_ERROR("Failed to initialize simulation");
-        return false;
+    // Create simulation (only if previous steps succeeded)
+    if (!initializationFailed) {
+        m_simulation = std::make_unique<Simulation>();
+        if (!m_simulation->init(*m_world)) {
+            FARM_LOG_ERROR("Failed to initialize simulation");
+            initializationFailed = true;
+        }
     }
     
-    // Create physics
-    m_physics = std::make_unique<PhysicsWorld>();
-    if (!m_physics->init()) {
-        FARM_LOG_ERROR("Failed to initialize physics");
-        return false;
+    // Create physics (only if previous steps succeeded)
+    if (!initializationFailed) {
+        m_physics = std::make_unique<PhysicsWorld>();
+        if (!m_physics->init()) {
+            FARM_LOG_ERROR("Failed to initialize physics");
+            initializationFailed = true;
+        }
     }
     
-    // Create audio
-    m_audio = std::make_unique<AudioSystem>();
-    if (!m_audio->init()) {
-        FARM_LOG_WARN("Audio system initialization failed (optional)");
+    // Create audio (optional - doesn't block initialization)
+    if (!initializationFailed) {
+        m_audio = std::make_unique<AudioSystem>();
+        if (!m_audio->init()) {
+            FARM_LOG_WARN("Audio system initialization failed (optional)");
+            m_audio.reset();  // Clean up failed optional component
+        }
     }
     
 #ifdef FARMENGINE_WITH_EDITOR
-    // Create editor
-    m_editor = std::make_unique<Editor>(*this);
-    if (!m_editor->init()) {
-        FARM_LOG_WARN("Editor initialization failed (optional)");
+    // Create editor (optional - doesn't block initialization)
+    if (!initializationFailed) {
+        m_editor = std::make_unique<Editor>(*this);
+        if (!m_editor->init()) {
+            FARM_LOG_WARN("Editor initialization failed (optional)");
+            m_editor.reset();  // Clean up failed optional component
+        }
     }
 #endif
+    
+    // Handle initialization failure - cleanup in reverse order
+    if (initializationFailed) {
+        FARM_LOG_ERROR("Engine initialization failed - cleaning up");
+        
+#ifdef FARMENGINE_WITH_EDITOR
+        if (m_editor) {
+            m_editor->shutdown();
+            m_editor.reset();
+        }
+#endif
+        
+        if (m_audio) {
+            m_audio->shutdown();
+            m_audio.reset();
+        }
+        
+        if (m_physics) {
+            m_physics->shutdown();
+            m_physics.reset();
+        }
+        
+        if (m_simulation) {
+            m_simulation->shutdown();
+            m_simulation.reset();
+        }
+        
+        if (m_world) {
+            m_world->shutdown();
+            m_world.reset();
+        }
+        
+        if (m_renderer) {
+            m_renderer->shutdown();
+            m_renderer.reset();
+        }
+        
+        if (m_window) {
+            m_window->shutdown();
+            m_window.reset();
+        }
+        
+        if (m_jobSystem) {
+            m_jobSystem->shutdown();
+            m_jobSystem.reset();
+        }
+        
+        // Shutdown any plugins that were registered before failure
+        for (auto it = m_plugins.rbegin(); it != m_plugins.rend(); ++it) {
+            if (*it) {
+                (*it)->shutdown();
+            }
+        }
+        m_plugins.clear();
+        
+        return false;
+    }
     
     m_initialized = true;
     m_running = true;
@@ -148,7 +212,10 @@ void Engine::stop() {
 }
 
 void Engine::shutdown() {
-    FARM_LOG_INFO("Shutting down engine...");
+    // Don't log if already shutting down or not initialized
+    if (m_initialized) {
+        FARM_LOG_INFO("Shutting down engine...");
+    }
     
     m_running = false;
     
@@ -194,11 +261,22 @@ void Engine::shutdown() {
         m_jobSystem.reset();
     }
     
+    // Shutdown all registered plugins in reverse order
+    for (auto it = m_plugins.rbegin(); it != m_plugins.rend(); ++it) {
+        if (*it) {
+            (*it)->shutdown();
+        }
+    }
+    m_plugins.clear();
     
     m_initialized = false;
     
-    FARM_LOG_INFO("Engine shutdown complete");
-    Logger::shutdown();
+    // Log after all subsystems are shut down but before logger shutdown
+    // Logger shutdown must be the very last thing
+    if (Logger::isInitialized()) {
+        FARM_LOG_INFO("Engine shutdown complete");
+        Logger::shutdown();
+    }
 }
 
 void Engine::processInput() {
@@ -269,9 +347,23 @@ void Engine::render() {
     m_renderer->endFrame();
 }
 
-void Engine::registerPlugin(const std::string& name, std::unique_ptr<void> plugin) {
+void Engine::registerPlugin(const std::string& name, std::unique_ptr<IPlugin> plugin) {
     FARM_LOG_INFO("Registered plugin: {}", name);
-    // Plugin registration logic here
+    
+    if (!plugin) {
+        FARM_LOG_ERROR("Attempted to register null plugin: {}", name);
+        return;
+    }
+    
+    // Initialize the plugin
+    if (!plugin->init()) {
+        FARM_LOG_ERROR("Plugin initialization failed: {}", name);
+        return;
+    }
+    
+    // Store plugin for later use
+    m_plugins.emplace_back(std::move(plugin));
+    FARM_LOG_DEBUG("Plugin '{}' initialized and registered successfully", name);
 }
 
 void Engine::queueUpdate(std::function<void()> func) {

@@ -46,18 +46,10 @@ endif()
 # ============================================================================
 
 add_library(FarmEngineCore STATIC
-    # Core systems
+    # Logger
     core/logger/Logger.cpp
     core/logger/Logger.h
-    core/memory/MemoryManager.cpp
-    core/memory/MemoryManager.h
-    core/jobsystem/JobSystem.cpp
-    core/jobsystem/JobSystem.h
-    core/ecs/ECS.cpp
-    core/ecs/ECS.h
-    core/ecs/Entity.h
-    core/ecs/Component.h
-    core/ecs/System.h
+    # Engine
     core/Engine.cpp
     core/Engine.h
 )
@@ -73,212 +65,11 @@ target_link_libraries(FarmEngineCore PUBLIC
     glm::glm
 )
 
-target_compile_definitions(FarmEngineCore PRIVATE
-    VK_USE_PLATFORM_XLIB_KHR
-    VK_USE_PLATFORM_WAYLAND_KHR
-)
-
-# ============================================================================
-# Renderer Library
-# ============================================================================
-
-add_library(FarmEngineRenderer STATIC
-    # Vulkan context
-    renderer/vulkan/context/VulkanContext.cpp
-    renderer/vulkan/context/VulkanContext.h
-    renderer/vulkan/context/Swapchain.cpp
-    renderer/vulkan/context/Swapchain.h
-    
-    # Resource management
-    renderer/vulkan/resource/ResourceSystem.cpp
-    renderer/vulkan/resource/ResourceSystem.h
-    renderer/vulkan/resource/GPUBuffer.cpp
-    renderer/vulkan/resource/GPUBuffer.h
-    renderer/vulkan/resource/GPUTexture.cpp
-    renderer/vulkan/resource/GPUTexture.h
-    
-    # Pipeline management
-    renderer/vulkan/pipeline/PipelineManager.cpp
-    renderer/vulkan/pipeline/PipelineManager.h
-    renderer/vulkan/pipeline/PipelineCache.cpp
-    renderer/vulkan/pipeline/PipelineCache.h
-    
-    # Render Graph
-    renderer/vulkan/graph/RenderGraph.cpp
-    renderer/vulkan/graph/RenderGraph.h
-    renderer/vulkan/graph/RenderPassNode.h
-    
-    # Render passes
-    renderer/passes/ShadowPass.cpp
-    renderer/passes/ShadowPass.h
-    renderer/passes/GBufferPass.cpp
-    renderer/passes/GBufferPass.h
-    renderer/passes/LightingPass.cpp
-    renderer/passes/LightingPass.h
-    
-    # 2D Renderer
-    renderer/2d/SpriteRenderer.cpp
-    renderer/2d/SpriteRenderer.h
-    renderer/2d/TilemapRenderer.cpp
-    renderer/2d/TilemapRenderer.h
-    renderer/2d/SpriteBatch.cpp
-    renderer/2d/SpriteBatch.h
-    
-    # 3D Renderer
-    renderer/3d/MeshRenderer.cpp
-    renderer/3d/MeshRenderer.h
-    renderer/3d/TerrainRenderer.cpp
-    renderer/3d/TerrainRenderer.h
-    renderer/3d/InstancedRenderer.cpp
-    renderer/3d/InstancedRenderer.h
-    
-    renderer/Renderer.cpp
-    renderer/Renderer.h
-)
-
-target_include_directories(FarmEngineRenderer PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${Vulkan_INCLUDE_DIRS}
-)
-
-target_link_libraries(FarmEngineRenderer PUBLIC
-    FarmEngineCore
-    ${Vulkan_LIBRARIES}
-)
-
-# ============================================================================
-# World System
-# ============================================================================
-
-add_library(FarmEngineWorld STATIC
-    world/terrain/Terrain.cpp
-    world/terrain/Terrain.h
-    world/terrain/Heightmap.cpp
-    world/terrain/Heightmap.h
-    
-    world/chunks/ChunkSystem.cpp
-    world/chunks/ChunkSystem.h
-    world/chunks/CropChunk.h
-    world/chunks/WorldStreamer.cpp
-    world/chunks/WorldStreamer.h
-    
-    world/tiles/Tilemap.cpp
-    world/tiles/Tilemap.h
-    world/tiles/Tile.h
-    
-    world/World.cpp
-    world/World.h
-)
-
-target_include_directories(FarmEngineWorld PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(FarmEngineWorld PUBLIC
-    FarmEngineCore
-    FarmEngineRenderer
-)
-
-# ============================================================================
-# Simulation System
-# ============================================================================
-
-add_library(FarmEngineSimulation STATIC
-    simulation/crops/CropSystem.cpp
-    simulation/crops/CropSystem.h
-    simulation/crops/Crop.h
-    simulation/crops/CropData.h
-    
-    simulation/animals/AnimalSystem.cpp
-    simulation/animals/AnimalSystem.h
-    simulation/animals/Animal.h
-    simulation/animals/AnimalAI.cpp
-    simulation/animals/AnimalAI.h
-    
-    simulation/weather/WeatherSystem.cpp
-    simulation/weather/WeatherSystem.h
-    simulation/weather/Season.h
-    simulation/weather/Weather.h
-    
-    simulation/soil/SoilSystem.cpp
-    simulation/soil/SoilSystem.h
-    simulation/soil/SoilTile.h
-    
-    simulation/Simulation.cpp
-    simulation/Simulation.h
-)
-
-target_include_directories(FarmEngineSimulation PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(FarmEngineSimulation PUBLIC
-    FarmEngineCore
-    FarmEngineWorld
-)
-
-# ============================================================================
-# Physics (Optional - stub for now)
-# ============================================================================
-
-add_library(FarmEnginePhysics STATIC
-    physics/PhysicsWorld.cpp
-    physics/PhysicsWorld.h
-    physics/Collision.cpp
-    physics/Collision.h
-)
-
-target_include_directories(FarmEnginePhysics PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(FarmEnginePhysics PUBLIC
-    FarmEngineCore
-)
-
-# ============================================================================
-# Audio (Optional - stub for now)
-# ============================================================================
-
-add_library(FarmEngineAudio STATIC
-    audio/AudioSystem.cpp
-    audio/AudioSystem.h
-    audio/AudioSource.cpp
-    audio/AudioSource.h
-)
-
-target_include_directories(FarmEngineAudio PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(FarmEngineAudio PUBLIC
-    FarmEngineCore
-)
-
-# ============================================================================
-# Editor & Tools
-# ============================================================================
-
-if(FARMENGINE_BUILD_EDITOR OR FARMENGINE_BUILD_TOOLS)
-    # Dear ImGui integration
-    add_library(FarmEngineEditorLib STATIC
-        tools/editor/Editor.cpp
-        tools/editor/Editor.h
-        tools/editor/EditorUI.cpp
-        tools/editor/EditorUI.h
-        tools/inspector/Inspector.cpp
-        tools/inspector/Inspector.h
-    )
-    
-    target_include_directories(FarmEngineEditorLib PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-    
-    target_link_libraries(FarmEngineEditorLib PUBLIC
-        FarmEngineCore
-        FarmEngineRenderer
-        FarmEngineWorld
-        FarmEngineSimulation
+# Platform-specific Vulkan definitions
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(FarmEngineCore PRIVATE
+        VK_USE_PLATFORM_XLIB_KHR
+        VK_USE_PLATFORM_WAYLAND_KHR
     )
 endif()
 
@@ -286,21 +77,29 @@ endif()
 # Main Engine Executable
 # ============================================================================
 
+# Create a minimal main.cpp for now
+file(WRITE ${CMAKE_BINARY_DIR}/main.cpp "
+#include \"core/Engine.h\"
+
+int main() {
+    farm::Engine engine;
+    if (engine.init()) {
+        // Engine initialized successfully
+        return 0;
+    }
+    return 1;
+}
+")
+
 add_executable(FarmEngine
-    main.cpp
+    ${CMAKE_BINARY_DIR}/main.cpp
 )
 
 target_link_libraries(FarmEngine PRIVATE
     FarmEngineCore
-    FarmEngineRenderer
-    FarmEngineWorld
-    FarmEngineSimulation
-    FarmEnginePhysics
-    FarmEngineAudio
 )
 
 if(FARMENGINE_BUILD_EDITOR)
-    target_link_libraries(FarmEngine PRIVATE FarmEngineEditorLib)
     target_compile_definitions(FarmEngine PRIVATE FARMENGINE_WITH_EDITOR)
 endif()
 
@@ -309,8 +108,6 @@ endif()
 # ============================================================================
 
 add_library(ExamplePlugin MODULE
-    plugins/ExamplePlugin.cpp
-    plugins/ExamplePlugin.h
     plugins/IPlugin.h
 )
 
@@ -334,11 +131,21 @@ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
 find_program(GLSLC glslc HINTS $ENV{VULKAN_SDK}/bin)
 
 if(GLSLC)
-    file(GLOB SHADER_SOURCES "${CMAKE_SOURCE_DIR}/assets/shaders/*.vert" 
-                              "${CMAKE_SOURCE_DIR}/assets/shaders/*.frag"
-                              "${CMAKE_SOURCE_DIR}/assets/shaders/*.comp")
+    # Explicitly list shader files to ensure CMake detects changes
+    set(SHADER_SOURCES
+        ${CMAKE_SOURCE_DIR}/assets/shaders/basic.vert
+        ${CMAKE_SOURCE_DIR}/assets/shaders/basic.frag
+    )
     
+    # Filter out non-existent files
+    set(EXISTING_SHADERS "")
     foreach(SHADER ${SHADER_SOURCES})
+        if(EXISTS ${SHADER})
+            list(APPEND EXISTING_SHADERS ${SHADER})
+        endif()
+    endforeach()
+    
+    foreach(SHADER ${EXISTING_SHADERS})
         get_filename_component(SHADER_NAME ${SHADER} NAME)
         set(SHADER_OUTPUT "${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}.spv")
         
@@ -352,8 +159,10 @@ if(GLSLC)
         list(APPEND SHADER_OUTPUTS ${SHADER_OUTPUT})
     endforeach()
     
-    add_custom_target(Shaders DEPENDS ${SHADER_OUTPUTS})
-    add_dependencies(FarmEngine Shaders)
+    if(SHADER_OUTPUTS)
+        add_custom_target(Shaders DEPENDS ${SHADER_OUTPUTS})
+        add_dependencies(FarmEngine Shaders)
+    endif()
 else()
     message(WARNING "glslc not found. Shaders will not be compiled automatically.")
 endif()

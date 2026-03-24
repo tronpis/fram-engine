@@ -309,7 +309,6 @@ class CropSystem : public System {
 
 ---
 
-## 💡 Consejos de Rick
 ## 💡 Recomendaciones de Diseño
 1. **No empieces con Vulkan directo:** Usa una librería como `vk-bootstrap` para inicialización.
 2. **Valida todo:** Usa Validation Layers desde el día 1.
@@ -344,4 +343,4 @@ Crear un engine Vulkan completo puede tomar:
 
 ---
 
-*FarmEngine - Porque hacer tu propio engine es la mejor forma de entender cómo funcionan los juegos AAA.* 🌾💻🚀
+*FarmEngine - Un motor de juego moderno para aprender ingeniería de software de alto nivel.* 🌾💻🚀
