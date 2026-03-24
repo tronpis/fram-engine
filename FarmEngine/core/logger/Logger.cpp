@@ -201,7 +201,14 @@ std::string Logger::getTimestamp() {
         now.time_since_epoch()) % 1000;
     
     std::ostringstream oss;
-    oss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
+    std::tm timeInfo;
+#ifdef _WIN32
+    localtime_s(&timeInfo, &time);
+    oss << std::put_time(&timeInfo, "%Y-%m-%d %H:%M:%S");
+#else
+    localtime_r(&time, &timeInfo);
+    oss << std::put_time(&timeInfo, "%Y-%m-%d %H:%M:%S");
+#endif
     oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
     
     return oss.str();
