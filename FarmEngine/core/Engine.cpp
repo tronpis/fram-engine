@@ -194,11 +194,11 @@ void Engine::shutdown() {
         m_jobSystem.reset();
     }
     
-    Logger::shutdown();
     
     m_initialized = false;
     
     FARM_LOG_INFO("Engine shutdown complete");
+    Logger::shutdown();
 }
 
 void Engine::processInput() {
