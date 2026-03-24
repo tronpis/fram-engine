@@ -310,7 +310,7 @@ class CropSystem : public System {
 ---
 
 ## 💡 Consejos de Rick
-
+## 💡 Recomendaciones de Diseño
 1. **No empieces con Vulkan directo:** Usa una librería como `vk-bootstrap` para inicialización.
 2. **Valida todo:** Usa Validation Layers desde el día 1.
 3. **No reinventes la rueda:** Usa VMA (Vulkan Memory Allocator), no escribas el tuyo.
