@@ -1,5 +1,13 @@
 #include "core/logger/Logger.h"
+#include "core/logger/Logger.h"
 #include "plugins/IPlugin.h"
+#include "platform/window/Window.h"
+#include "renderer/Renderer.h"
+#include "world/World.h"
+#include "simulation/Simulation.h"
+#include "physics/PhysicsWorld.h"
+#include "audio/AudioSystem.h"
+#include "core/jobsystem/JobSystem.h"
 
 #ifdef FARMENGINE_WITH_EDITOR
 #include "tools/editor/Editor.h"
