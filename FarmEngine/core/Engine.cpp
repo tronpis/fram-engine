@@ -16,6 +16,8 @@
 namespace farm {
 
 Engine::Engine() {
+    // Logger must be initialized before any logging
+    Logger::init();
     FARM_LOG_INFO("FarmEngine initializing...");
 }
 
@@ -33,8 +35,6 @@ bool Engine::init(const std::string& config) {
     
     FARM_LOG_INFO("Initializing engine subsystems...");
     
-    // Initialize logger first
-    Logger::init();
     
     // Create job system for multithreading
     m_jobSystem = std::make_unique<JobSystem>();
