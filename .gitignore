@@ -1,5 +1,5 @@
 ```
-# Build artifacts
+# Compiled and build artifacts
 *.o
 *.obj
 *.exe
@@ -8,40 +8,68 @@
 *.a
 *.out
 
-# CMake build directories
-build/
-cmake-build-*/
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-
 # Dependencies
-node_modules/
 venv/
 .venv/
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Build directories
+build/
+dist/
+*.egg-info/
+.coverage
+coverage/
+htmlcov/
+.nyc_output/
+.mypy_cache/
+.pytest_cache/
+.tox/
+.hypothesis/
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
 
 # Editors
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
+*.sln
+*.csproj
+*.user
+*.userosscache
+*.suo
 
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# OS specific
+# OS generated files
 .DS_Store
-Thumbs.db
-Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Icon?
+iTunes_Control/
+*.DS_Store
+.TemporaryItems
+.Trash-*
+```
