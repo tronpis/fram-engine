@@ -1,37 +1,22 @@
 #include "Logger.h"
 
 #include <iostream>
-#include <fstream>
-#include <mutex>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <cstring>
 #include <ctime>
-#include <format>
 
 namespace farm {
 
-// Forward declaration of implementation
-class LoggerImpl {
-public:
-    LoggerConfig config;
-    std::ofstream fileStream;
-    std::mutex mutex;
-    bool initialized = false;
-    
-    ~LoggerImpl() {
-        if (fileStream.is_open()) {
-            fileStream.close();
-        }
-    }
-};
-
 std::unique_ptr<LoggerImpl> Logger::s_instance;
 std::atomic<bool> Logger::s_initialized{false};
+std::mutex Logger::s_mutex;
 
 void Logger::init(const LoggerConfig& config) {
-    // Prevent double initialization
+    // Prevent double initialization with mutex protection
+    std::lock_guard<std::mutex> lock(s_mutex);
+    
     bool expected = false;
     if (!s_initialized.compare_exchange_strong(expected, true)) {
         return;  // Already initialized or initializing
@@ -59,7 +44,9 @@ void Logger::init(const LoggerConfig& config) {
 }
 
 void Logger::shutdown() {
-    // Check if already shut down using atomic
+    // Check if already shut down using atomic with mutex protection
+    std::lock_guard<std::mutex> lock(s_mutex);
+    
     bool expected = true;
     if (!s_initialized.compare_exchange_strong(expected, false)) {
         return;  // Already shut down or never initialized
@@ -81,13 +68,15 @@ void Logger::shutdown() {
 }
 
 void Logger::setLevel(LogLevel level) {
-    if (s_instance && s_initialized.load()) {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if (s_instance && s_initialized.load() && s_instance->initialized) {
         s_instance->config.level = level;
     }
 }
 
 LogLevel Logger::getLevel() {
-    if (s_instance && s_initialized.load()) {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if (s_instance && s_initialized.load() && s_instance->initialized) {
         return s_instance->config.level;
     }
     return LogLevel::Info;
@@ -98,17 +87,15 @@ bool Logger::isInitialized() {
 }
 
 void Logger::logMessage(LogLevel level, const std::string& message) {
-    // Thread-safe check using atomic
-    if (!s_initialized.load() || !s_instance || !s_instance->initialized) {
-        return;
-    }
+    // Note: s_mutex is already held by the caller (log template method, init, shutdown).
+    // s_mutex protects s_instance lifetime, so this check is safe.
     
-    std::lock_guard<std::mutex> lock(s_instance->mutex);
-    
-    // Double-check after acquiring lock (in case shutdown happened)
     if (!s_instance || !s_instance->initialized) {
         return;
     }
+    
+    // Acquire s_instance->mutex to protect access to s_instance's internal members
+    std::lock_guard<std::mutex> lock(s_instance->mutex);
     
     // Build the log line
     std::ostringstream oss;

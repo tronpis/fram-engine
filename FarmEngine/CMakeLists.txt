@@ -41,6 +41,15 @@ if(NOT glfw3_FOUND OR NOT glm_FOUND)
     endif()
 endif()
 
+# Fetch fmt library for logging
+include(FetchContent)
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 10.2.1
+)
+FetchContent_MakeAvailable(fmt)
+
 # ============================================================================
 # Core Library
 # ============================================================================
@@ -63,6 +72,7 @@ target_link_libraries(FarmEngineCore PUBLIC
     ${Vulkan_LIBRARIES}
     glfw
     glm::glm
+    fmt::fmt
 )
 
 # Platform-specific Vulkan definitions

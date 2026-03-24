@@ -6,6 +6,9 @@
 #include <functional>
 #include <unordered_map>
 #include <atomic>
+#include <fstream>
+#include <mutex>
+#include <fmt/format.h>
 
 namespace farm {
 
@@ -31,6 +34,26 @@ struct LoggerConfig {
     std::string logFile = "farmengine.log";
     bool coloredOutput = true;
     bool timestamp = true;
+};
+
+/**
+ * @brief Internal implementation class for Logger
+ * 
+ * This class holds the actual logger state and is defined here to allow
+ * the template log() function in Logger to access its members safely.
+ */
+class LoggerImpl {
+public:
+    LoggerConfig config;
+    std::ofstream fileStream;
+    std::mutex mutex;
+    bool initialized = false;
+    
+    ~LoggerImpl() {
+        if (fileStream.is_open()) {
+            fileStream.close();
+        }
+    }
 };
 
 /**
@@ -82,20 +105,24 @@ public:
      */
     template<typename... Args>
     static void log(LogLevel level, const std::string& format, Args&&... args) {
-        // Thread-safe check: don't log if not initialized
+        // Thread-safe check: acquire lock first to protect s_instance access
+        std::lock_guard<std::mutex> lock(s_mutex);
+        
         if (!s_initialized.load() || !s_instance || !s_instance->initialized) {
             return;
         }
         
-        if (level < s_instance->config.level) {
+        // Check log level while holding the lock
+        LogLevel currentLevel = s_instance->config.level;
+        if (level < currentLevel) {
             return;  // Below minimum log level
         }
         
-        // Use std::format for proper variadic formatting (C++20)
+        // Use fmt::format for proper variadic formatting
         std::string message;
         try {
-            message = std::vformat(format, std::make_format_args(args...));
-        } catch (const std::format_error& e) {
+            message = fmt::format(format, std::forward<Args>(args)...);
+        } catch (const fmt::format_error& e) {
             // Fallback: use format string as-is if formatting fails
             message = format + std::string(" [format error: ") + e.what() + "]";
         }
@@ -159,6 +186,7 @@ private:
     
     static std::unique_ptr<class LoggerImpl> s_instance;
     static std::atomic<bool> s_initialized;
+    static std::mutex s_mutex;
 };
 
 } // namespace farm

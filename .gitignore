@@ -1,7 +1,9 @@
-```
 # Compiled and build artifacts
+*.pyc
+__pycache__/
 *.o
 *.obj
+*.class
 *.exe
 *.dll
 *.so
@@ -9,12 +11,11 @@
 *.out
 
 # Dependencies
-venv/
 .venv/
-__pycache__/
+venv/
+node_modules/
 .mypy_cache/
 .pytest_cache/
-node_modules/
 dist/
 build/
 target/
@@ -67,4 +68,3 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```
