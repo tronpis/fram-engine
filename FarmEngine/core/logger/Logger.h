@@ -81,43 +81,75 @@ public:
      * @param args Arguments to format
      */
     template<typename... Args>
-    static void log(LogLevel level, const std::string& format, Args&&... args);
+    static void log(LogLevel level, const std::string& format, Args&&... args) {
+        // Thread-safe check: don't log if not initialized
+        if (!s_initialized.load() || !s_instance || !s_instance->initialized) {
+            return;
+        }
+        
+        if (level < s_instance->config.level) {
+            return;  // Below minimum log level
+        }
+        
+        // Use std::format for proper variadic formatting (C++20)
+        std::string message;
+        try {
+            message = std::vformat(format, std::make_format_args(args...));
+        } catch (const std::format_error& e) {
+            // Fallback: use format string as-is if formatting fails
+            message = format + std::string(" [format error: ") + e.what() + "]";
+        }
+        
+        logMessage(level, message);
+    }
     
     /**
      * @brief Log a trace message
      */
     template<typename... Args>
-    static void trace(const std::string& format, Args&&... args);
+    static void trace(const std::string& format, Args&&... args) {
+        log(LogLevel::Trace, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log a debug message
      */
     template<typename... Args>
-    static void debug(const std::string& format, Args&&... args);
+    static void debug(const std::string& format, Args&&... args) {
+        log(LogLevel::Debug, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log an info message
      */
     template<typename... Args>
-    static void info(const std::string& format, Args&&... args);
+    static void info(const std::string& format, Args&&... args) {
+        log(LogLevel::Info, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log a warning message
      */
     template<typename... Args>
-    static void warn(const std::string& format, Args&&... args);
+    static void warn(const std::string& format, Args&&... args) {
+        log(LogLevel::Warn, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log an error message
      */
     template<typename... Args>
-    static void error(const std::string& format, Args&&... args);
+    static void error(const std::string& format, Args&&... args) {
+        log(LogLevel::Error, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log a fatal message
      */
     template<typename... Args>
-    static void fatal(const std::string& format, Args&&... args);
+    static void fatal(const std::string& format, Args&&... args) {
+        log(LogLevel::Fatal, format, std::forward<Args>(args)...);
+    }
     
 private:
     static void logMessage(LogLevel level, const std::string& message);
