@@ -96,7 +96,6 @@ void JobSystem::workerThread() {
             if (remaining == 0) {
                 m_completionCondition.notify_all();
             }
-            }
         }
     }
 }
