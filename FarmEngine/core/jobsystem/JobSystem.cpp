@@ -92,9 +92,10 @@ void JobSystem::workerThread() {
 
         if (job) {
             job();
-            m_pendingJobs--;
-            if (m_pendingJobs.load() == 0) {
+            int remaining = --m_pendingJobs;
+            if (remaining == 0) {
                 m_completionCondition.notify_all();
+            }
             }
         }
     }
