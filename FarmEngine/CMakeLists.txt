@@ -58,6 +58,12 @@ add_library(FarmEngineCore STATIC
     # Logger
     core/logger/Logger.cpp
     core/logger/Logger.h
+    # JobSystem
+    core/jobsystem/JobSystem.cpp
+    core/jobsystem/JobSystem.h
+    # Window
+    platform/window/Window.cpp
+    platform/window/Window.h
     # Engine
     core/Engine.cpp
     core/Engine.h
