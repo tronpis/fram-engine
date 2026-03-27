@@ -41,6 +41,15 @@ if(NOT glfw3_FOUND OR NOT glm_FOUND)
     endif()
 endif()
 
+# Fetch fmt library for logging
+include(FetchContent)
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 10.2.1
+)
+FetchContent_MakeAvailable(fmt)
+
 # ============================================================================
 # Core Library
 # ============================================================================
@@ -63,6 +72,7 @@ target_link_libraries(FarmEngineCore PUBLIC
     ${Vulkan_LIBRARIES}
     glfw
     glm::glm
+    fmt::fmt
 )
 
 # Platform-specific Vulkan definitions
@@ -70,6 +80,117 @@ if(UNIX AND NOT APPLE)
     target_compile_definitions(FarmEngineCore PRIVATE
         VK_USE_PLATFORM_XLIB_KHR
         VK_USE_PLATFORM_WAYLAND_KHR
+    )
+endif()
+
+# ============================================================================
+# Renderer Library
+# ============================================================================
+
+add_library(FarmEngineRenderer STATIC
+    renderer/Renderer.cpp
+    renderer/Renderer.h
+)
+
+target_include_directories(FarmEngineRenderer PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${Vulkan_INCLUDE_DIRS}
+)
+
+target_link_libraries(FarmEngineRenderer PUBLIC
+    FarmEngineCore
+    ${Vulkan_LIBRARIES}
+)
+
+# ============================================================================
+# World System
+# ============================================================================
+
+add_library(FarmEngineWorld STATIC
+    world/World.cpp
+    world/World.h
+)
+
+target_include_directories(FarmEngineWorld PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(FarmEngineWorld PUBLIC
+    FarmEngineCore
+    FarmEngineRenderer
+)
+
+# ============================================================================
+# Simulation System
+# ============================================================================
+
+add_library(FarmEngineSimulation STATIC
+    simulation/Simulation.cpp
+    simulation/Simulation.h
+)
+
+target_include_directories(FarmEngineSimulation PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(FarmEngineSimulation PUBLIC
+    FarmEngineCore
+    FarmEngineWorld
+)
+
+# ============================================================================
+# Physics (Optional - stub for now)
+# ============================================================================
+
+add_library(FarmEnginePhysics STATIC
+    physics/PhysicsWorld.cpp
+    physics/PhysicsWorld.h
+)
+
+target_include_directories(FarmEnginePhysics PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(FarmEnginePhysics PUBLIC
+    FarmEngineCore
+)
+
+# ============================================================================
+# Audio (Optional - stub for now)
+# ============================================================================
+
+add_library(FarmEngineAudio STATIC
+    audio/AudioSystem.cpp
+    audio/AudioSystem.h
+)
+
+target_include_directories(FarmEngineAudio PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(FarmEngineAudio PUBLIC
+    FarmEngineCore
+)
+
+# ============================================================================
+# Editor & Tools
+# ============================================================================
+
+if(FARMENGINE_BUILD_EDITOR OR FARMENGINE_BUILD_TOOLS)
+    # Dear ImGui integration
+    add_library(FarmEngineEditorLib STATIC
+        tools/editor/Editor.h
+    )
+    
+    target_include_directories(FarmEngineEditorLib PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    
+    target_link_libraries(FarmEngineEditorLib PUBLIC
+        FarmEngineCore
+        FarmEngineRenderer
+        FarmEngineWorld
+        FarmEngineSimulation
     )
 endif()
 
@@ -97,9 +218,15 @@ add_executable(FarmEngine
 
 target_link_libraries(FarmEngine PRIVATE
     FarmEngineCore
+    FarmEngineRenderer
+    FarmEngineWorld
+    FarmEngineSimulation
+    FarmEnginePhysics
+    FarmEngineAudio
 )
 
 if(FARMENGINE_BUILD_EDITOR)
+    target_link_libraries(FarmEngine PRIVATE FarmEngineEditorLib)
     target_compile_definitions(FarmEngine PRIVATE FARMENGINE_WITH_EDITOR)
 endif()
 
