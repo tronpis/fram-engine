@@ -353,8 +353,6 @@ void Engine::render() {
     
     // End frame and present
     m_renderer->endFrame();
-}
-
 void Engine::registerPlugin(const std::string& name, std::unique_ptr<IPlugin> plugin) {
     if (!plugin) {
         FARM_LOG_ERROR("Attempted to register null plugin: {}", name);
