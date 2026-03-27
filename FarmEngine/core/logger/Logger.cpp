@@ -193,3 +193,40 @@ std::string Logger::getColorCode(LogLevel level) {
 }
 
 } // namespace farm
+
+// Explicit template instantiations for common types
+namespace farm {
+template void Logger::log<std::string>(LogLevel, const std::string&, std::string&&);
+template void Logger::log<const char*>(LogLevel, const std::string&, const char*&&);
+template void Logger::log<int>(LogLevel, const std::string&, int&&);
+template void Logger::log<double>(LogLevel, const std::string&, double&&);
+template void Logger::log<float>(LogLevel, const std::string&, float&&);
+template void Logger::log<long>(LogLevel, const std::string&, long&&);
+template void Logger::log<unsigned int>(LogLevel, const std::string&, unsigned int&&);
+template void Logger::log<unsigned long>(LogLevel, const std::string&, unsigned long&&);
+
+template void Logger::trace<std::string>(const std::string&, std::string&&);
+template void Logger::trace<const char*>(const std::string&, const char*&&);
+template void Logger::trace<int>(const std::string&, int&&);
+
+template void Logger::debug<std::string>(const std::string&, std::string&&);
+template void Logger::debug<const char*>(const std::string&, const char*&&);
+template void Logger::debug<int>(const std::string&, int&&);
+
+template void Logger::info<std::string>(const std::string&, std::string&&);
+template void Logger::info<const char*>(const std::string&, const char*&&);
+template void Logger::info<int>(const std::string&, int&&);
+template void Logger::info<double>(const std::string&, double&&);
+
+template void Logger::warn<std::string>(const std::string&, std::string&&);
+template void Logger::warn<const char*>(const std::string&, const char*&&);
+template void Logger::warn<int>(const std::string&, int&&);
+
+template void Logger::error<std::string>(const std::string&, std::string&&);
+template void Logger::error<const char*>(const std::string&, const char*&&);
+template void Logger::error<int>(const std::string&, int&&);
+
+template void Logger::fatal<std::string>(const std::string&, std::string&&);
+template void Logger::fatal<const char*>(const std::string&, const char*&&);
+template void Logger::fatal<int>(const std::string&, int&&);
+} // namespace farm
