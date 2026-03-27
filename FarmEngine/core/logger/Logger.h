@@ -8,7 +8,6 @@
 #include <atomic>
 #include <fstream>
 #include <mutex>
-#include <format>
 #include <fmt/format.h>
 
 namespace farm {
