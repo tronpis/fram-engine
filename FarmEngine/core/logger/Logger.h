@@ -6,6 +6,9 @@
 #include <functional>
 #include <unordered_map>
 #include <atomic>
+#include <fstream>
+#include <mutex>
+#include <fmt/format.h>
 
 namespace farm {
 
@@ -31,6 +34,26 @@ struct LoggerConfig {
     std::string logFile = "farmengine.log";
     bool coloredOutput = true;
     bool timestamp = true;
+};
+
+/**
+ * @brief Internal implementation class for Logger
+ * 
+ * This class holds the actual logger state and is defined here to allow
+ * the template log() function in Logger to access its members safely.
+ */
+class LoggerImpl {
+public:
+    LoggerConfig config;
+    std::ofstream fileStream;
+    std::mutex mutex;
+    bool initialized = false;
+    
+    ~LoggerImpl() {
+        if (fileStream.is_open()) {
+            fileStream.close();
+        }
+    }
 };
 
 /**
@@ -81,43 +104,79 @@ public:
      * @param args Arguments to format
      */
     template<typename... Args>
-    static void log(LogLevel level, const std::string& format, Args&&... args);
+    static void log(LogLevel level, const std::string& format, Args&&... args) {
+        // Thread-safe check: acquire lock first to protect s_instance access
+        std::lock_guard<std::mutex> lock(s_mutex);
+        
+        if (!s_initialized.load() || !s_instance || !s_instance->initialized) {
+            return;
+        }
+        
+        // Check log level while holding the lock
+        LogLevel currentLevel = s_instance->config.level;
+        if (level < currentLevel) {
+            return;  // Below minimum log level
+        }
+        
+        // Use fmt::format for proper variadic formatting
+        std::string message;
+        try {
+            message = fmt::format(format, std::forward<Args>(args)...);
+        } catch (const fmt::format_error& e) {
+            // Fallback: use format string as-is if formatting fails
+            message = format + std::string(" [format error: ") + e.what() + "]";
+        }
+        
+        logMessage(level, message);
+    }
     
     /**
      * @brief Log a trace message
      */
     template<typename... Args>
-    static void trace(const std::string& format, Args&&... args);
+    static void trace(const std::string& format, Args&&... args) {
+        log(LogLevel::Trace, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log a debug message
      */
     template<typename... Args>
-    static void debug(const std::string& format, Args&&... args);
+    static void debug(const std::string& format, Args&&... args) {
+        log(LogLevel::Debug, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log an info message
      */
     template<typename... Args>
-    static void info(const std::string& format, Args&&... args);
+    static void info(const std::string& format, Args&&... args) {
+        log(LogLevel::Info, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log a warning message
      */
     template<typename... Args>
-    static void warn(const std::string& format, Args&&... args);
+    static void warn(const std::string& format, Args&&... args) {
+        log(LogLevel::Warn, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log an error message
      */
     template<typename... Args>
-    static void error(const std::string& format, Args&&... args);
+    static void error(const std::string& format, Args&&... args) {
+        log(LogLevel::Error, format, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief Log a fatal message
      */
     template<typename... Args>
-    static void fatal(const std::string& format, Args&&... args);
+    static void fatal(const std::string& format, Args&&... args) {
+        log(LogLevel::Fatal, format, std::forward<Args>(args)...);
+    }
     
 private:
     static void logMessage(LogLevel level, const std::string& message);
@@ -127,6 +186,7 @@ private:
     
     static std::unique_ptr<class LoggerImpl> s_instance;
     static std::atomic<bool> s_initialized;
+    static std::mutex s_mutex;
 };
 
 } // namespace farm
