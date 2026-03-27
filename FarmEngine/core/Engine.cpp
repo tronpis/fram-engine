@@ -46,6 +46,8 @@ bool Engine::init(const std::string& config) {
     
     // Create window
     m_window = std::make_unique<Window>();
+    // Create window
+    m_window = std::make_unique<Window>();
     if (!m_window->init("FarmEngine", 1920, 1080)) {
         FARM_LOG_ERROR("Failed to create window");
         m_window.reset();  // Clean up invalid window immediately
@@ -86,7 +88,52 @@ bool Engine::init(const std::string& config) {
             FARM_LOG_ERROR("Failed to initialize physics");
             initializationFailed = true;
         }
+        if (m_jobSystem) m_jobSystem->shutdown();
+        return false;
     }
+    
+    // Create renderer
+    m_renderer = std::make_unique<Renderer>();
+    if (!m_renderer->init(*m_window)) {
+        FARM_LOG_ERROR("Failed to initialize renderer");
+        if (m_window) m_window->shutdown();
+        if (m_jobSystem) m_jobSystem->shutdown();
+        return false;
+    }
+    
+    // Create world
+    m_world = std::make_unique<World>();
+    if (!m_world->init()) {
+        FARM_LOG_ERROR("Failed to initialize world");
+        if (m_renderer) m_renderer->shutdown();
+        if (m_window) m_window->shutdown();
+        if (m_jobSystem) m_jobSystem->shutdown();
+        return false;
+    }
+    
+    // Create simulation
+    m_simulation = std::make_unique<Simulation>();
+    if (!m_simulation->init(*m_world)) {
+        FARM_LOG_ERROR("Failed to initialize simulation");
+        if (m_world) m_world->shutdown();
+        if (m_renderer) m_renderer->shutdown();
+        if (m_window) m_window->shutdown();
+        if (m_jobSystem) m_jobSystem->shutdown();
+        return false;
+    }
+    
+    // Create physics
+    m_physics = std::make_unique<PhysicsWorld>();
+    if (!m_physics->init()) {
+        FARM_LOG_ERROR("Failed to initialize physics");
+        if (m_simulation) m_simulation->shutdown();
+        if (m_world) m_world->shutdown();
+        if (m_renderer) m_renderer->shutdown();
+        if (m_window) m_window->shutdown();
+        if (m_jobSystem) m_jobSystem->shutdown();
+        return false;
+    }
+
     
     // Create audio (optional - doesn't block initialization)
     if (!initializationFailed) {
