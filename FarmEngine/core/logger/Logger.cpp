@@ -1,35 +1,25 @@
 #include "Logger.h"
 
 #include <iostream>
-#include <fstream>
-#include <mutex>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <cstring>
+#include <ctime>
 
 namespace farm {
 
-// Forward declaration of implementation
-class LoggerImpl {
-public:
-    LoggerConfig config;
-    std::ofstream fileStream;
-    std::mutex mutex;
-    bool initialized = false;
-    
-    ~LoggerImpl() {
-        if (fileStream.is_open()) {
-            fileStream.close();
-        }
-    }
-};
-
 std::unique_ptr<LoggerImpl> Logger::s_instance;
+std::atomic<bool> Logger::s_initialized{false};
+std::mutex Logger::s_mutex;
 
 void Logger::init(const LoggerConfig& config) {
-    if (s_instance && s_instance->initialized) {
-        return;  // Already initialized
+    // Prevent double initialization with mutex protection
+    std::lock_guard<std::mutex> lock(s_mutex);
+    
+    bool expected = false;
+    if (!s_initialized.compare_exchange_strong(expected, true)) {
+        return;  // Already initialized or initializing
     }
     
     s_instance = std::make_unique<LoggerImpl>();
@@ -39,99 +29,72 @@ void Logger::init(const LoggerConfig& config) {
     if (config.fileOutput) {
         s_instance->fileStream.open(config.logFile, std::ios::out | std::ios::app);
         if (!s_instance->fileStream.is_open()) {
+            // Resource leak fix: clean up on failure
+            s_instance.reset();
+            s_initialized.store(false);
             std::cerr << "[FarmEngine] Failed to open log file: " << config.logFile << std::endl;
+            return;
         }
     }
     
     s_instance->initialized = true;
     
-    // Log initialization message
+    // Log initialization message (bypass normal logging to avoid recursion)
     logMessage(LogLevel::Info, "Logger initialized");
 }
 
 void Logger::shutdown() {
-    if (!s_instance) {
-        return;
+    // Check if already shut down using atomic with mutex protection
+    std::lock_guard<std::mutex> lock(s_mutex);
+    
+    bool expected = true;
+    if (!s_initialized.compare_exchange_strong(expected, false)) {
+        return;  // Already shut down or never initialized
     }
     
-    logMessage(LogLevel::Info, "Logger shutting down");
+    // Log shutdown message before destroying instance
+    if (s_instance && s_instance->initialized) {
+        logMessage(LogLevel::Info, "Logger shutting down");
+    }
     
     // Flush and close file
-    if (s_instance->fileStream.is_open()) {
+    if (s_instance && s_instance->fileStream.is_open()) {
         s_instance->fileStream.flush();
         s_instance->fileStream.close();
     }
     
+    // Reset instance - no logging after this point
     s_instance.reset();
 }
 
 void Logger::setLevel(LogLevel level) {
-    if (s_instance) {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if (s_instance && s_initialized.load() && s_instance->initialized) {
         s_instance->config.level = level;
     }
 }
 
 LogLevel Logger::getLevel() {
-    if (s_instance) {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if (s_instance && s_initialized.load() && s_instance->initialized) {
         return s_instance->config.level;
     }
     return LogLevel::Info;
 }
 
-template<typename... Args>
-void Logger::log(LogLevel level, const std::string& format, Args&&... args) {
-    if (!s_instance || !s_instance->initialized) {
-        return;
-    }
-    
-    if (level < s_instance->config.level) {
-        return;  // Below minimum log level
-    }
-    
-    // Simple formatting (in production, use fmt library)
-    std::string message = format;
-    
-    // For now, just pass through the format string
-    // A real implementation would use fmt::format or similar
-    
-    logMessage(level, message);
-}
-
-template<typename... Args>
-void Logger::trace(const std::string& format, Args&&... args) {
-    log(LogLevel::Trace, format, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void Logger::debug(const std::string& format, Args&&... args) {
-    log(LogLevel::Debug, format, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void Logger::info(const std::string& format, Args&&... args) {
-    log(LogLevel::Info, format, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void Logger::warn(const std::string& format, Args&&... args) {
-    log(LogLevel::Warn, format, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void Logger::error(const std::string& format, Args&&... args) {
-    log(LogLevel::Error, format, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void Logger::fatal(const std::string& format, Args&&... args) {
-    log(LogLevel::Fatal, format, std::forward<Args>(args)...);
+bool Logger::isInitialized() {
+    return s_initialized.load();
 }
 
 void Logger::logMessage(LogLevel level, const std::string& message) {
+    // Note: s_mutex is already held by the caller (log template method, init, shutdown).
+    // s_mutex protects s_instance lifetime, so this check is safe.
+    
     if (!s_instance || !s_instance->initialized) {
         return;
     }
     
+    // Acquire s_instance->mutex to protect access to s_instance's internal members
     std::lock_guard<std::mutex> lock(s_instance->mutex);
     
     // Build the log line
@@ -203,9 +166,12 @@ std::string Logger::getTimestamp() {
     std::ostringstream oss;
     std::tm timeInfo;
 #ifdef _WIN32
+    // Thread-safe version on Windows
     localtime_s(&timeInfo, &time);
     oss << std::put_time(&timeInfo, "%Y-%m-%d %H:%M:%S");
 #else
+    // Thread-safe version on POSIX - use thread_local buffer
+    // localtime_r is thread-safe as it writes to user-provided buffer
     localtime_r(&time, &timeInfo);
     oss << std::put_time(&timeInfo, "%Y-%m-%d %H:%M:%S");
 #endif
@@ -226,4 +192,63 @@ std::string Logger::getColorCode(LogLevel level) {
     }
 }
 
+} // namespace farm
+
+// Explicit template instantiations for common types
+namespace farm {
+// Zero-argument instantiations (for simple string messages without formatting)
+template void Logger::log<>(LogLevel, const std::string&);
+template void Logger::trace<>(const std::string&);
+template void Logger::debug<>(const std::string&);
+template void Logger::info<>(const std::string&);
+template void Logger::warn<>(const std::string&);
+template void Logger::error<>(const std::string&);
+template void Logger::fatal<>(const std::string&);
+
+// Single-argument instantiations for the generic log function
+template void Logger::log<std::string>(LogLevel, const std::string&, std::string&&);
+template void Logger::log<const char*>(LogLevel, const std::string&, const char*&&);
+template void Logger::log<int>(LogLevel, const std::string&, int&&);
+template void Logger::log<double>(LogLevel, const std::string&, double&&);
+template void Logger::log<float>(LogLevel, const std::string&, float&&);
+template void Logger::log<long>(LogLevel, const std::string&, long&&);
+template void Logger::log<unsigned int>(LogLevel, const std::string&, unsigned int&&);
+template void Logger::log<unsigned long>(LogLevel, const std::string&, unsigned long&&);
+
+// Single-argument instantiations for specific log levels (consistent types across all levels)
+template void Logger::trace<std::string>(const std::string&, std::string&&);
+template void Logger::trace<const char*>(const std::string&, const char*&&);
+template void Logger::trace<int>(const std::string&, int&&);
+template void Logger::trace<double>(const std::string&, double&&);
+template void Logger::trace<float>(const std::string&, float&&);
+
+template void Logger::debug<std::string>(const std::string&, std::string&&);
+template void Logger::debug<const char*>(const std::string&, const char*&&);
+template void Logger::debug<int>(const std::string&, int&&);
+template void Logger::debug<double>(const std::string&, double&&);
+template void Logger::debug<float>(const std::string&, float&&);
+
+template void Logger::info<std::string>(const std::string&, std::string&&);
+template void Logger::info<const char*>(const std::string&, const char*&&);
+template void Logger::info<int>(const std::string&, int&&);
+template void Logger::info<double>(const std::string&, double&&);
+template void Logger::info<float>(const std::string&, float&&);
+
+template void Logger::warn<std::string>(const std::string&, std::string&&);
+template void Logger::warn<const char*>(const std::string&, const char*&&);
+template void Logger::warn<int>(const std::string&, int&&);
+template void Logger::warn<double>(const std::string&, double&&);
+template void Logger::warn<float>(const std::string&, float&&);
+
+template void Logger::error<std::string>(const std::string&, std::string&&);
+template void Logger::error<const char*>(const std::string&, const char*&&);
+template void Logger::error<int>(const std::string&, int&&);
+template void Logger::error<double>(const std::string&, double&&);
+template void Logger::error<float>(const std::string&, float&&);
+
+template void Logger::fatal<std::string>(const std::string&, std::string&&);
+template void Logger::fatal<const char*>(const std::string&, const char*&&);
+template void Logger::fatal<int>(const std::string&, int&&);
+template void Logger::fatal<double>(const std::string&, double&&);
+template void Logger::fatal<float>(const std::string&, float&&);
 } // namespace farm

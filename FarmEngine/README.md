@@ -352,6 +352,6 @@ This is not a weekend project. This is serious engine development.
 
 ---
 
-**Made with 🧪 by Rick-approved engineering principles**
+**Made with 🔬 by approved engineering principles**
 
-*"Wubba lubba dub dub! Now go build that engine, Morty!"*
+*"Now go build that engine!"*

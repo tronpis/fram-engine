@@ -16,6 +16,7 @@ class PhysicsWorld;
 class AudioSystem;
 class Editor;
 class JobSystem;
+class IPlugin;
 
 /**
  * @brief Main Engine class - orchestrates all subsystems
@@ -92,7 +93,7 @@ public:
     /**
      * @brief Register a plugin module
      */
-    void registerPlugin(const std::string& name, std::unique_ptr<void> plugin);
+    void registerPlugin(const std::string& name, std::unique_ptr<IPlugin> plugin);
     
     /**
      * @brief Queue a function to be called on next update
@@ -128,6 +129,9 @@ private:
     
     // Pending update functions
     std::vector<std::function<void()>> m_pendingUpdates;
+    
+    // Registered plugins
+    std::vector<std::unique_ptr<IPlugin>> m_plugins;
 };
 
 } // namespace farm
