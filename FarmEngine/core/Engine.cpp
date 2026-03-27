@@ -1,3 +1,4 @@
+#include "core/Engine.h"
 #include "core/logger/Logger.h"
 #include "plugins/IPlugin.h"
 #include "platform/window/Window.h"

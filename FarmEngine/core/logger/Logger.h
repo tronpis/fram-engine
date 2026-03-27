@@ -121,7 +121,7 @@ public:
         // Use fmt::format for proper variadic formatting
         std::string message;
         try {
-            message = fmt::format(format, std::forward<Args>(args)...);
+            message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
         } catch (const fmt::format_error& e) {
             // Fallback: use format string as-is if formatting fails
             message = format + std::string(" [format error: ") + e.what() + "]";
