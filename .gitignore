@@ -7,9 +7,6 @@
 *.so
 *.a
 *.out
-build/
-dist/
-target/
 
 # Dependencies
 node_modules/
@@ -18,9 +15,10 @@ venv/
 __pycache__/
 .mypy_cache/
 .pytest_cache/
+dist/
+build/
+target/
 .gradle/
-julia-*/
-zig*/
 
 # Logs and temp files
 *.log
@@ -65,4 +63,8 @@ htmlcov/
 *.Z
 *.lz
 *.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
