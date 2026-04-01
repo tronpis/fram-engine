@@ -4,7 +4,7 @@
 #include <string>
 #include <functional>
 #include <unordered_map>
-#include <glm/glm.hpp>
+#include <array>
 #include <glm/glm.hpp>
 
 namespace FarmEngine {
@@ -81,10 +81,10 @@ public:
 private:
     Keyboard() = default;
     
-    std::vector<bool> currentKeys;
-    std::vector<bool> previousKeys;
-    std::vector<bool> justPressed;
-    std::vector<bool> justReleased;
+    std::array<bool, 512> currentKeys{};
+    std::array<bool, 512> previousKeys{};
+    std::array<bool, 512> justPressed{};
+    std::array<bool, 512> justReleased{};
     
     std::function<void(KeyCode, InputAction)> keyCallback;
 };
@@ -129,10 +129,10 @@ private:
     double prevX = 0.0, prevY = 0.0;
     glm::vec2 delta{0.0f, 0.0f};
     
-    std::vector<bool> currentButtons;
-    std::vector<bool> previousButtons;
-    std::vector<bool> justPressed;
-    std::vector<bool> justReleased;
+    std::array<bool, 8> currentButtons{};
+    std::array<bool, 8> previousButtons{};
+    std::array<bool, 8> justPressed{};
+    std::array<bool, 8> justReleased{};
     
     double scrollX = 0.0, scrollY = 0.0;
     
@@ -179,8 +179,8 @@ private:
     Gamepad() = default;
     
     bool connected = false;
-    std::vector<bool> buttons;
-    std::vector<float> axes;
+    std::array<bool, Button::Count> buttons{};
+    std::array<float, Axis::Count> axes{};
     
     std::function<void(bool)> connectionCallback;
 };

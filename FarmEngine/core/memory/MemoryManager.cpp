@@ -17,7 +17,7 @@ void* MemoryManager::allocate(size_t size, MemoryTag tag) {
     void* ptr = malloc(size);
     
     if (ptr) {
-        AllocationHeader header{size, tag, allocationCounter++};
+        AllocationHeader header{ptr, size, tag, allocationCounter++};
         allocations.push_back(header);
         totalAllocated += size;
     }
@@ -28,11 +28,10 @@ void* MemoryManager::allocate(size_t size, MemoryTag tag) {
 void MemoryManager::deallocate(void* ptr) {
     if (!ptr) return;
     
-    // Buscar y remover la asignación
+    // Buscar y remover la asignación por puntero
     auto it = std::find_if(allocations.begin(), allocations.end(),
         [ptr](const AllocationHeader& h) {
-            // En una implementación real, compararíamos punteros reales
-            return false; // Simplificado para este ejemplo
+            return h.ptr == ptr;
         });
     
     if (it != allocations.end()) {
@@ -50,21 +49,28 @@ void* MemoryManager::reallocate(void* ptr, size_t newSize) {
         return nullptr;
     }
     
+    // Find old allocation to get old size
+    size_t oldSize = 0;
+    auto it = std::find_if(allocations.begin(), allocations.end(),
+        [ptr](const AllocationHeader& h) {
+            return h.ptr == ptr;
+        });
+    
+    if (it != allocations.end()) {
+        oldSize = it->size;
+    }
+    
     void* newPtr = realloc(ptr, newSize);
     if (newPtr) {
-        // Find and update allocation header
-        auto it = std::find_if(allocations.begin(), allocations.end(),
-            [ptr, newPtr](const AllocationHeader& h) {
-                // In real implementation, compare actual pointers
-                return false; // Simplified for this example
-            });
-        
         if (it != allocations.end()) {
+            // Update existing record
             totalAllocated -= it->size;
+            it->ptr = newPtr;
             it->size = newSize;
             totalAllocated += newSize;
         } else {
-            AllocationHeader header{newSize, MemoryTag::None, allocationCounter++};
+            // Create new record if old one wasn't found
+            AllocationHeader header{newPtr, newSize, MemoryTag::None, allocationCounter++};
             allocations.push_back(header);
             totalAllocated += newSize;
         }

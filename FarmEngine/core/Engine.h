@@ -7,6 +7,10 @@
 
 namespace farm {
 
+// Alias for FarmEngine namespace to maintain backward compatibility
+namespace EngineNS = FarmEngine;
+
+
 // Forward declarations
 class Window;
 class Renderer;
