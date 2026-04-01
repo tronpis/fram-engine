@@ -27,7 +27,7 @@ public:
     ComponentMask mask;
     bool active = true;
     
-    Entity() : id(-1) {}
+    Entity() : id(UINT32_MAX) {}
     Entity(EntityID entityId) : id(entityId) {}
 };
 
