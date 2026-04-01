@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <unordered_map>
+#include <glm/glm.hpp>
 #include <glm/glm.hpp>
 
 namespace FarmEngine {
