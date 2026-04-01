@@ -67,10 +67,11 @@ bool Renderer::beginFrame() {
         &currentImageIndex
     );
     
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        // Handle resize
-        return false;
-    }
+if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+    // Handle resize
+    return false;
+}
+
     
     stats.frameNumber++;
     return true;
