@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <glm/glm.hpp>
 
 namespace FarmEngine {
 
