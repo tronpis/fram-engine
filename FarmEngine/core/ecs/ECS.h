@@ -18,7 +18,7 @@ using ComponentMask = std::bitset<MAX_COMPONENTS>;
 class Component {
 public:
     virtual ~Component() = default;
-    EntityID entityID = -1;
+    EntityID entityID = UINT32_MAX;
 };
 
 class Entity {
