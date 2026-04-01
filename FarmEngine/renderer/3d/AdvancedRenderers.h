@@ -144,8 +144,9 @@ struct InstanceData {
 
 struct VegetationConfig {
     std::string name;
-    Mesh* mesh;
-    Material material;
+    class Mesh* mesh;
+    struct Material material;
+
     
     // LOD
     float lodDistances[4] = {20, 50, 100, 200};
