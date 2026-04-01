@@ -217,8 +217,9 @@ void Renderer::updateStats() {
     auto deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
     lastTime = currentTime;
     
-    stats.fps = 1.0f / deltaTime;
-    stats.frameTime = deltaTime * 1000.0f;
+stats.fps = (deltaTime > 0.0f) ? (1.0f / deltaTime) : 0.0f;
+stats.frameTime = deltaTime * 1000.0f;
+
     
     // Gather stats from subsystems
     if (renderer3D) {
