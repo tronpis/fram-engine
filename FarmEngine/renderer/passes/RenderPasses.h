@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <memory>
+#include <unordered_map>
 
 namespace FarmEngine {
 

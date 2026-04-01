@@ -47,6 +47,7 @@ private:
     MemoryManager& operator=(const MemoryManager&) = delete;
     
     struct AllocationHeader {
+        void* ptr;
         size_t size;
         MemoryTag tag;
         uint32_t id;

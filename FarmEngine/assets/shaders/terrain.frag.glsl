@@ -13,6 +13,10 @@ layout(binding = 2) uniform sampler2D normalMap;
 layout(binding = 3) uniform sampler2D roughnessMap;
 layout(binding = 4) uniform sampler2D metalnessMap;
 
+layout(binding = 0) uniform CameraData {
+    vec3 cameraPosition;
+} cameraData;
+
 layout(binding = 5) uniform LightData {
     vec3 position;
     vec3 color;
@@ -45,7 +49,7 @@ void main() {
     
     // Lighting
     vec3 lightDir = normalize(position - fragPosition);
-    vec3 viewDir = normalize(cameraPosition - fragPosition);
+    vec3 viewDir = normalize(cameraData.cameraPosition - fragPosition);
     vec3 halfDir = normalize(lightDir + viewDir);
     
     // Diffuse (Lambert)

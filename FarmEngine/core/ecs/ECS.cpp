@@ -31,8 +31,8 @@ void ECS::destroyEntity(EntityID entity) {
     
     // Limpiar componentes
     for (auto& componentList : components) {
-        if (componentList.second && entity < componentList.second->size()) {
-            (*componentList.second)[entity].reset();
+        if (entity < componentList.size()) {
+            componentList[entity].reset();
         }
     }
     

@@ -156,7 +156,7 @@ public:
     void setViewProjection(const glm::mat4& view, const glm::mat4& projection);
     
     // Stats
-    uint32_t getDrawCalls() const { return drawCalls; }
+    uint32_t getDrawCalls() const { return drawCallCount; }
     uint32_t getTriangleCount() const { return triangleCount; }
     
 private:
@@ -183,8 +183,8 @@ private:
     glm::mat4 viewMatrix;
     glm::mat4 projectionMatrix;
     
-    uint32_t drawCalls;
-    uint32_t triangleCount;
+    uint32_t drawCallCount = 0;
+    uint32_t triangleCount = 0;
 };
 
 } // namespace FarmEngine

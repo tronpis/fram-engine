@@ -56,8 +56,8 @@ public:
 private:
     std::vector<Entity> entities;
     std::vector<EntityID> availableIDs;
-    std::unordered_map<std::type_index, std::vector<std::unique_ptr<Component>>> components;
-    std::unordered_map<std::type_index, EntityID> componentTypeToIndex;
+    std::vector<std::vector<std::unique_ptr<Component>>> components;
+    std::unordered_map<std::type_index, uint32_t> componentTypeToIndex;
     
     uint32_t nextComponentIndex = 0;
     
@@ -68,18 +68,18 @@ private:
 // Template implementations
 template<typename T, typename... Args>
 T& ECS::addComponent(EntityID entity, Args&&... args) {
+    if (entity >= entities.size() || !entities[entity].active) {
+        throw std::out_of_range("Invalid or inactive entity ID");
+    }
+    
     auto index = getComponentTypeIndex<T>();
     
     if (index >= components.size()) {
         components.resize(index + 1);
     }
     
-    if (!components[index]) {
-        components[index] = std::vector<std::unique_ptr<Component>>();
-    }
-    
-    while (components[index]->size() <= entity) {
-        components[index]->push_back(nullptr);
+    while (components[index].size() <= entity) {
+        components[index].push_back(nullptr);
     }
     
     auto component = std::make_unique<T>(std::forward<Args>(args)...);
@@ -94,13 +94,17 @@ T& ECS::addComponent(EntityID entity, Args&&... args) {
 
 template<typename T>
 T* ECS::getComponent(EntityID entity) {
-    auto index = getComponentTypeIndex<T>();
-    
-    if (index >= components.size() || !components[index]) {
+    if (entity >= entities.size() || !entities[entity].active) {
         return nullptr;
     }
     
-    if (entity >= components[index]->size()) {
+    auto index = getComponentTypeIndex<T>();
+    
+    if (index >= components.size()) {
+        return nullptr;
+    }
+    
+    if (entity >= components[index].size()) {
         return nullptr;
     }
     
@@ -109,9 +113,13 @@ T* ECS::getComponent(EntityID entity) {
 
 template<typename T>
 void ECS::removeComponent(EntityID entity) {
+    if (entity >= entities.size() || !entities[entity].active) {
+        return;
+    }
+    
     auto index = getComponentTypeIndex<T>();
     
-    if (index < components.size() && components[index] && entity < components[index]->size()) {
+    if (index < components.size() && entity < components[index].size()) {
         components[index][entity].reset();
         entities[entity].mask.reset(index);
     }
@@ -119,9 +127,19 @@ void ECS::removeComponent(EntityID entity) {
 
 template<typename T>
 uint32_t ECS::getComponentTypeIndex() {
-    static uint32_t index = []() {
-        return nextComponentIndex++;
-    }();
+    auto key = std::type_index(typeid(T));
+    
+    auto it = componentTypeToIndex.find(key);
+    if (it != componentTypeToIndex.end()) {
+        return it->second;
+    }
+    
+    if (nextComponentIndex >= MAX_COMPONENTS) {
+        throw std::overflow_error("Maximum number of component types exceeded");
+    }
+    
+    uint32_t index = nextComponentIndex++;
+    componentTypeToIndex[key] = index;
     return index;
 }
 

@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <glm/glm.hpp>
 
 namespace FarmEngine {
 
