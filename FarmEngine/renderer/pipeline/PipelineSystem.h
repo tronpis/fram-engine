@@ -176,7 +176,8 @@ struct DepthStencilState {
 
 struct MultisampleState {
     VkSampleCountFlagBits rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    float sampleShadingEnable = false;
+    bool sampleShadingEnable = false;
+
     float minSampleShading = 1.0f;
     const VkSampleMask* sampleMask = nullptr;
     bool alphaToCoverageEnable = false;
