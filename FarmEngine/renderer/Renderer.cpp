@@ -23,10 +23,17 @@ bool Renderer::initialize(void* windowHandle, void* windowInstance,
     }
     
     // Create resource system
-    createSystems();
-    
-    // Setup render graph
-    setupRenderGraph();
+// Create resource system
+if (!createSystems()) {
+    return false;
+}
+
+// Setup render graph
+if (!setupRenderGraph()) {
+    destroySystems();
+    return false;
+}
+
     
     initialized = true;
     return true;
