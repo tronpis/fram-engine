@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <mutex>
 #include <glm/glm.hpp>
 
 namespace FarmEngine {
@@ -95,8 +96,11 @@ public:
     void setBlock(const glm::vec3& worldPos, uint8_t blockID);
     
     // Estadísticas
-    size_t getLoadedChunkCount() const { return chunks.size(); }
-    size_t getPendingGenerationCount() const { return pendingGeneration.size(); }
+    size_t getLoadedChunkCount() const;
+    size_t getPendingGenerationCount() const;
+    
+    // Chunks visibles
+    const std::vector<Chunk*>& getVisibleChunks() const;
     
 private:
     ChunkManager() = default;
@@ -105,10 +109,15 @@ private:
     glm::ivec3 worldToChunk(const glm::vec3& worldPos) const;
     glm::ivec3 worldToLocal(const glm::vec3& worldPos) const;
     
+    void processPendingGenerations();
+    void buildChunkMeshes();
+    void updateVisibleChunks(const glm::vec3& cameraPosition);
+    
     ChunkConfig config;
     
-    // Chunks cargados: key = (chunkX << 16) | chunkZ
+    // Chunks cargados: key = (chunkX << 32) | chunkZ
     std::unordered_map<int64_t, std::unique_ptr<Chunk>> chunks;
+    mutable std::mutex chunkMutex;
     
     // Cola de generación
     std::vector<std::pair<int32_t, int32_t>> pendingGeneration;
@@ -135,6 +144,104 @@ private:
     void threadFunction();
     
     // Implementación multihilo
+};
+
+// ============================================================================
+// LOD System
+// ============================================================================
+
+struct LODConfig {
+    float lodDistances[4] = {20.0f, 50.0f, 100.0f, 200.0f};
+    float vegetationLODDistances[4] = {10.0f, 30.0f, 60.0f, 120.0f};
+    float terrainLODDistances[4] = {30.0f, 80.0f, 150.0f, 300.0f};
+};
+
+struct VegetationInstance {
+    glm::vec3 position;
+    float rotation;
+    float scale;
+    uint32_t variant;
+    int32_t lodLevel;
+    bool visible;
+};
+
+class LODSystem {
+public:
+    static LODSystem& getInstance();
+    
+    void initialize(const LODConfig& config);
+    void update(const glm::vec3& cameraPosition);
+    
+    // Calculate LOD level based on distance
+    int32_t calculateLOD(float distance) const;
+    float getLODDistance(int32_t lodLevel) const;
+    
+    // Apply LOD to vegetation instances
+    void applyVegetationLOD(std::vector<VegetationInstance>& instances,
+                           const glm::vec3& cameraPosition);
+    
+    const LODConfig& getConfig() const { return config; }
+    
+private:
+    LODSystem() = default;
+    
+    LODConfig config;
+    glm::vec3 currentCameraPosition;
+};
+
+// ============================================================================
+// Culling System
+// ============================================================================
+
+struct CullingConfig {
+    int32_t chunkSize = 32;
+    float maxCullDistance = 500.0f;
+    bool enableFrustumCulling = true;
+    bool enableDistanceCulling = true;
+    bool enableOcclusionCulling = false;
+};
+
+struct CullingResult {
+    std::vector<Chunk*> visible;
+    size_t visibleCount = 0;
+    size_t culled = 0;
+};
+
+class CullingSystem {
+public:
+    static CullingSystem& getInstance();
+    
+    void initialize(const CullingConfig& config);
+    
+    // Set frustum from view-projection matrix
+    void setFrustum(const glm::mat4& viewProjMatrix);
+    
+    // Test if bounding box/sphere is in frustum
+    bool isBoxInFrustum(const glm::vec3& min, const glm::vec3& max) const;
+    bool isSphereInFrustum(const glm::vec3& center, float radius) const;
+    
+    // Distance-based culling test
+    bool shouldCullByDistance(const glm::vec3& objectPosition,
+                             const glm::vec3& cameraPosition,
+                             float maxDistance) const;
+    
+    // Cull chunks
+    CullingResult cullChunks(const std::vector<Chunk*>& chunks,
+                            const glm::vec3& cameraPosition,
+                            float maxDistance);
+    
+    // Cull vegetation instances
+    void cullVegetation(std::vector<VegetationInstance>& instances,
+                       const glm::vec3& cameraPosition,
+                       float maxDistance);
+    
+    const CullingConfig& getConfig() const { return config; }
+    
+private:
+    CullingSystem() = default;
+    
+    CullingConfig config;
+    glm::vec4 frustumPlanes[6]; // Left, Right, Bottom, Top, Near, Far
 };
 
 } // namespace FarmEngine
