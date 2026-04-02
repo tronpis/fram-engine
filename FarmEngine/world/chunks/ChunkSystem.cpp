@@ -436,7 +436,7 @@ uint8_t ChunkManager::getBlock(const glm::vec3& worldPos) {
     glm::ivec3 chunkCoords = worldToChunk(worldPos);
     glm::ivec3 localCoords = worldToLocal(worldPos);
     
-    Chunk* chunk = getChunk(chunkCoords.x, chunkCoords.y);
+    Chunk* chunk = getChunk(chunkCoords.x, chunkCoords.z);
     if (chunk == nullptr) {
         return 0; // Air
     }
