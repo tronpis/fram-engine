@@ -333,8 +333,9 @@ void ChunkManager::update(const glm::vec3& playerPosition, float deltaTime) {
 Chunk* ChunkManager::getChunk(int32_t chunkX, int32_t chunkZ) {
     std::lock_guard<std::mutex> lock(chunkMutex);
     
-    uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32) | 
-                   static_cast<uint32_t>(chunkZ);
+    // Use proper two's complement for negative coordinates
+    uint64_t key = (static_cast<uint64_t>(static_cast<int64_t>(chunkX)) << 32) | 
+                   (static_cast<uint64_t>(chunkZ) & 0xFFFFFFFFULL);
     
     auto it = chunks.find(key);
     if (it != chunks.end()) {
