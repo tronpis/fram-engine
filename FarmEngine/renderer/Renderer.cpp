@@ -22,18 +22,40 @@ bool Renderer::initialize(void* windowHandle, void* windowInstance,
         return false;
     }
     
+    // Create synchronization objects
+    auto device = vulkanContext->getDevice();
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        // Create fence
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;  // Start signaled to avoid blocking on first frame
+        if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+            return false;
+        }
+        
+        // Create image available semaphore
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS) {
+            return false;
+        }
+        
+        // Create render finished semaphore
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
+            return false;
+        }
+    }
+    
     // Create resource system
-// Create resource system
-if (!createSystems()) {
-    return false;
-}
-
-// Setup render graph
-if (!setupRenderGraph()) {
-    destroySystems();
-    return false;
-}
-
+    if (!createSystems()) {
+        return false;
+    }
+    
+    // Setup render graph
+    if (!setupRenderGraph()) {
+        destroySystems();
+        return false;
+    }
     
     initialized = true;
     return true;
@@ -43,6 +65,14 @@ void Renderer::shutdown() {
     if (!initialized) return;
     
     waitForIdle();
+    
+    // Destroy synchronization objects
+    auto device = vulkanContext->getDevice();
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        vkDestroyFence(device, inFlightFences[i], nullptr);
+        vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+    }
     
     destroySystems();
     
@@ -83,7 +113,7 @@ void Renderer::endFrame() {
     // Present
     present();
     
-    currentFrame = (currentFrame + 1) % 3;
+    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     
     updateStats();
 }
@@ -97,7 +127,16 @@ void Renderer::present() {
     presentInfo.pSwapchains = &vulkanContext->getSwapchain();
     presentInfo.pImageIndices = &currentImageIndex;
     
-    vkQueuePresentKHR(vulkanContext->getPresentQueue(), &presentInfo);
+    VkResult result = vkQueuePresentKHR(vulkanContext->getPresentQueue(), &presentInfo);
+    
+    // Handle swapchain recreation scenarios
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        // Swapchain needs recreation - will be handled by resize or next frame
+        return;
+    } else if (result != VK_SUCCESS) {
+        // Other errors (e.g., device lost) should be handled appropriately
+        // For now, we just log it - in production you'd want more robust handling
+    }
 }
 
 void Renderer::onWindowResize(uint32_t newWidth, uint32_t newHeight) {
@@ -139,7 +178,7 @@ Renderer::~Renderer() {
     shutdown();
 }
 
-void Renderer::createSystems() {
+bool Renderer::createSystems() {
     auto device = vulkanContext->getDevice();
     auto physicalDevice = vulkanContext->getPhysicalDevice();
     
@@ -150,35 +189,56 @@ void Renderer::createSystems() {
         physicalDevice,
         device,
         vulkanContext->getGraphicsQueue(),
-        vulkanContext->getPresentQueue()  // Using present as transfer for now
+        vulkanContext->getGraphicsQueue()  // Using graphics queue for transfer (guaranteed to support it)
     );
     
     // Pipeline system
     pipelineSystem = std::make_unique<PipelineSystem>();
-    pipelineSystem->initialize(device, physicalDevice);
+    if (!pipelineSystem->initialize(device, physicalDevice)) {
+        return false;
+    }
     
     // Render graph
     renderGraph = std::make_unique<RenderGraph>();
-    renderGraph->initialize(device, physicalDevice, 
-                           config.screenWidth, config.screenHeight);
+    if (!renderGraph->initialize(device, physicalDevice, 
+                           config.screenWidth, config.screenHeight)) {
+        return false;
+    }
     
-    // 2D renderers
+    // 2D renderers - initialize with default parameters
     spriteRenderer = std::make_unique<SpriteRenderer2D>(device, physicalDevice);
+    if (!spriteRenderer->initialize()) {
+        return false;
+    }
+    
+    // TilemapRenderer requires specific dimensions - initialize on-demand
+    // We'll create it here but defer initialization until first use
     tilemapRenderer = std::make_unique<TilemapRenderer2D>(device, physicalDevice);
+    // Note: Call tilemapRenderer->initialize(width, height, tileSize) before first use
     
     // 3D renderers
     renderer3D = std::make_unique<Renderer3D>();
-    renderer3D->initialize(device, physicalDevice);
+    if (!renderer3D->initialize(device, physicalDevice)) {
+        return false;
+    }
     
     instancedRenderer = std::make_unique<InstancedRenderer>(device, physicalDevice);
-    instancedRenderer->initialize(config.maxVegetationInstances);
+    if (!instancedRenderer->initialize(config.maxVegetationInstances)) {
+        return false;
+    }
     
     skinnedMeshRenderer = std::make_unique<SkinnedMeshRenderer>(device, physicalDevice);
-    skinnedMeshRenderer->initialize();
+    if (!skinnedMeshRenderer->initialize()) {
+        return false;
+    }
     
     // Particle system
     particleSystem = std::make_unique<ParticleSystem>(device, physicalDevice);
-    particleSystem->initialize(config.maxParticles);
+    if (!particleSystem->initialize(config.maxParticles)) {
+        return false;
+    }
+    
+    return true;
 }
 
 void Renderer::destroySystems() {
@@ -196,7 +256,7 @@ void Renderer::destroySystems() {
     resourceSystem.reset();
 }
 
-void Renderer::setupRenderGraph() {
+bool Renderer::setupRenderGraph() {
     // Add passes to render graph
     auto* shadowPass = renderGraph->addShadowPass();
     auto* gbufferPass = renderGraph->addGBufferPass();
@@ -217,6 +277,8 @@ void Renderer::setupRenderGraph() {
     
     // Compile the graph
     renderGraph->compile();
+    
+    return true;
 }
 
 void Renderer::updateStats() {

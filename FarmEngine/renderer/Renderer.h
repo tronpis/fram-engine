@@ -118,9 +118,9 @@ private:
     Renderer() = default;
     ~Renderer();
     
-    void createSystems();
+    bool createSystems();
     void destroySystems();
-    void setupRenderGraph();
+    bool setupRenderGraph();
     void updateStats();
     
     bool initialized = false;
@@ -153,9 +153,10 @@ private:
     glm::vec3 cameraPosition;
     
     // Frame synchronization
-    VkFence inFlightFences[3] = {};
-    VkSemaphore imageAvailableSemaphores[3] = {};
-    VkSemaphore renderFinishedSemaphores[3] = {};
+    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
+    VkFence inFlightFences[MAX_FRAMES_IN_FLIGHT] = {};
+    VkSemaphore imageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT] = {};
+    VkSemaphore renderFinishedSemaphores[MAX_FRAMES_IN_FLIGHT] = {};
     uint32_t currentFrame = 0;
     uint32_t currentImageIndex = 0;
 };
