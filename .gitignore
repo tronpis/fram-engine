@@ -4,9 +4,8 @@
 *.obj
 *.a
 *.lib
-*.dll
 *.so
-*.dylib
+*.dll
 *.exe
 *.out
 
@@ -20,32 +19,11 @@ compile_commands.json
 
 # Dependencies
 vendor/
-external/
 
 # Logs
 *.log
 
-# Temporary files
-*.tmp
-*.temp
-
-# Environment
-.env
-.env.local
-.env.*
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
 ```
