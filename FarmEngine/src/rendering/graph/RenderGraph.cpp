@@ -383,13 +383,12 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
     std::vector<VkImageMemoryBarrier> imageBarriers;
     for (const auto& pending : pass.pendingResourceBarriers) {
         VkImage image = registry.getImage(pending.resourceName);
-        if (image == VK_NULL_HANDLE) {
-            throw std::runtime_error("Resource barrier references resource with VK_NULL_HANDLE: " + pending.resourceName);
-        }
-        
         const ResourceHandle* res = registry.getResource(pending.resourceName);
         if (!res) {
             throw std::runtime_error("Resource barrier references unknown resource: " + pending.resourceName);
+        }
+        if (image == VK_NULL_HANDLE) {
+            throw std::runtime_error("Resource barrier references resource with VK_NULL_HANDLE: " + pending.resourceName);
         }
         
         VkImageMemoryBarrier barrier{};
