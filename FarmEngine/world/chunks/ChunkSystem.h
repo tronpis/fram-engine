@@ -197,8 +197,8 @@ struct CullingConfig {
     int32_t chunkSize = 32;
     float maxCullDistance = 500.0f;
     bool enableFrustumCulling = true;
-    bool EnableDistanceCulling = true;
-    bool EnableOcclusionCulling = false;
+    bool enableDistanceCulling = true;
+    bool enableOcclusionCulling = false;
 };
 
 struct CullingResult {
