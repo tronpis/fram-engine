@@ -123,19 +123,12 @@ RenderGraphBuilder& RenderGraphBuilder::addDependency(uint32_t from, uint32_t to
 // ============================================================================
 // RenderGraph Implementation
 // ============================================================================
-
-RenderGraph::~RenderGraph() {
-    // Destructor - cleanup se hace explícitamente en cleanup()
-}
-
-void RenderGraph::compile(RenderGraphBuilder&& builder) {
-    device = VK_NULL_HANDLE; // Se seteará cuando tengamos contexto Vulkan
-    
     // Copiar recursos y passes
     compiledRegistry.resources = std::move(builder.resources);
     
     // Limpiar estado previo antes de compilar
     compiledPasses.clear();
+    
     compiledPasses.resize(builder.passes.size());
 
     
