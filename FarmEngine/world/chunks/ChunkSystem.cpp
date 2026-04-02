@@ -331,6 +331,8 @@ void ChunkManager::update(const glm::vec3& playerPosition, float deltaTime) {
 }
 
 Chunk* ChunkManager::getChunk(int32_t chunkX, int32_t chunkZ) {
+    std::lock_guard<std::mutex> lock(chunkMutex);
+    
     int64_t key = (static_cast<int64_t>(chunkX) << 32) | 
                   (static_cast<uint32_t>(chunkZ) & 0xFFFFFFFF);
     
