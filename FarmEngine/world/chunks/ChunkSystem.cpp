@@ -817,7 +817,7 @@ void CullingSystem::cullVegetation(std::vector<VegetationInstance>& instances,
         writeIndex++;
     }
     
-    // Resize to remove culled instances from active list
+    instances.resize(writeIndex);
     // (Keep them in the vector but mark as not visible)
 }
 
