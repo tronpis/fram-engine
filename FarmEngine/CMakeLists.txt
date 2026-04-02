@@ -96,6 +96,11 @@ endif()
 add_library(FarmEngineRenderer STATIC
     renderer/Renderer.cpp
     renderer/Renderer.h
+    # Render Graph System
+    rendering/graph/RenderGraph.h
+    rendering/graph/RenderGraph.cpp
+    rendering/graph/RenderPipeline.h
+    rendering/graph/RenderPipeline.cpp
 )
 
 target_include_directories(FarmEngineRenderer PUBLIC
