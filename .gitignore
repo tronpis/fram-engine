@@ -18,19 +18,10 @@ __pycache__/
 target/
 .gradle/
 
-# Build directories
-build/
-dist/
-
 # Logs and temp files
 *.log
 *.tmp
 *.swp
-
-# Environment
-.env
-.env.local
-*.env.*
 
 # Editors
 .vscode/
@@ -39,8 +30,11 @@ dist/
 # System files
 .DS_Store
 Thumbs.db
+.env
+.env.local
+*.env.*
 
-# Coverage
+# Coverage reports
 coverage/
 htmlcov/
 .coverage
@@ -64,4 +58,8 @@ htmlcov/
 *.Z
 *.lz
 *.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
