@@ -181,10 +181,10 @@ bool Chunk::buildMesh() {
                 // Right face (+X)
                 if (getBlock(x+1, y, z) == 0) {
                     opaqueMesh.vertices.insert(opaqueMesh.vertices.end(), {
-                        fx+1, fy,   fz,   0, 1, 0,
-                        fx+1, fy+1, fz,   0, 1, 0,
-                        fx+1, fy+1, fz+1, 0, 1, 0,
-                        fx+1, fy,   fz+1, 0, 1, 0
+                        fx+1, fy,   fz,   1, 0, 0,
+                        fx+1, fy+1, fz,   1, 0, 0,
+                        fx+1, fy+1, fz+1, 1, 0, 0,
+                        fx+1, fy,   fz+1, 1, 0, 0
                     });
                     uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 6) - 4;
                     opaqueMesh.indices.insert(opaqueMesh.indices.end(), {
