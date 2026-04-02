@@ -347,6 +347,8 @@ Chunk* ChunkManager::getChunkAtWorldPos(const glm::vec3& worldPos) {
 }
 
 void ChunkManager::requestChunkGeneration(int32_t chunkX, int32_t chunkZ) {
+    std::lock_guard<std::mutex> lock(chunkMutex);
+    
     // Check if chunk already exists
     if (getChunk(chunkX, chunkZ) != nullptr) {
         return;
