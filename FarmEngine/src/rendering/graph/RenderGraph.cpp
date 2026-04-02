@@ -41,6 +41,10 @@ void ResourceRegistry::updateResourceState(const std::string& name,
                                            VkPipelineStageFlags newStage) {
     auto it = nameToIndex.find(name);
     if (it != nameToIndex.end()) {
+        // Defensive bounds check to prevent out-of-bounds access with stale indices
+        if (it->second >= resources.size()) {
+            return;
+        }
         resources[it->second].currentLayout = newLayout;
         resources[it->second].currentAccess = newAccess;
         resources[it->second].currentStage = newStage;
@@ -120,6 +124,30 @@ RenderGraphBuilder& RenderGraphBuilder::addDependency(uint32_t from, uint32_t to
     dep.dstStageMask = dstStage;
     dep.srcAccessMask = srcAccess;
     dep.dstAccessMask = dstAccess;
+    explicitDependencies.push_back(dep);
+    return *this;
+}
+
+RenderGraphBuilder& RenderGraphBuilder::addResourceDependency(uint32_t from, uint32_t to,
+                                                               const std::string& resourceName,
+                                                               VkPipelineStageFlags srcStage,
+                                                               VkPipelineStageFlags dstStage,
+                                                               VkAccessFlags srcAccess,
+                                                               VkAccessFlags dstAccess,
+                                                               VkImageLayout oldLayout,
+                                                               VkImageLayout newLayout,
+                                                               VkImageAspectFlags aspectMask) {
+    PassDependency dep;
+    dep.from = from;
+    dep.to = to;
+    dep.srcStageMask = srcStage;
+    dep.dstStageMask = dstStage;
+    dep.srcAccessMask = srcAccess;
+    dep.dstAccessMask = dstAccess;
+    dep.resourceName = resourceName;
+    dep.oldLayout = oldLayout;
+    dep.newLayout = newLayout;
+    dep.aspectMask = aspectMask;
     explicitDependencies.push_back(dep);
     return *this;
 }
@@ -206,19 +234,50 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
     
     // Procesar dependencias explícitas y convertirlas en barreras por-pass
     for (const auto& dep : builder.explicitDependencies) {
-        if (dep.to < compiledPasses.size()) {
+        // Validate dependency indices
+        if (dep.from >= compiledPasses.size()) {
+            throw std::runtime_error("Invalid dependency: 'from' index " + std::to_string(dep.from) + 
+                                     " is out of range (pass count: " + std::to_string(compiledPasses.size()) + ")");
+        }
+        if (dep.to >= compiledPasses.size()) {
+            throw std::runtime_error("Invalid dependency: 'to' index " + std::to_string(dep.to) + 
+                                     " is out of range (pass count: " + std::to_string(compiledPasses.size()) + ")");
+        }
+        
+        if (!dep.resourceName.empty()) {
+            // Resource-specific dependency: create VkImageMemoryBarrier
+            const ResourceHandle* res = compiledRegistry.getResource(dep.resourceName);
+            if (!res) {
+                throw std::runtime_error("Resource dependency references unknown resource: " + dep.resourceName);
+            }
+            
             VkImageMemoryBarrier barrier{};
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             barrier.srcAccessMask = dep.srcAccessMask;
             barrier.dstAccessMask = dep.dstAccessMask;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            barrier.newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.oldLayout = dep.oldLayout;
+            barrier.newLayout = dep.newLayout;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            barrier.image = VK_NULL_HANDLE; // Se establecerá durante la ejecución
-            barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+            barrier.image = res->image;
+            barrier.subresourceRange = {
+                dep.aspectMask,
+                0, res->mipLevels,
+                0, res->arrayLayers
+            };
             
             compiledPasses[dep.to].prePassBarriers.push_back(barrier);
+        } else {
+            // Pass-level execution dependency: store in CompiledPass for use with VkMemoryBarrier
+            compiledPasses[dep.to].dependencies.push_back({
+                dep.from,
+                dep.to,
+                dep.srcStageMask,
+                dep.dstStageMask,
+                dep.srcAccessMask,
+                dep.dstAccessMask,
+                VK_DEPENDENCY_BY_REGION_BIT
+            });
         }
     }
 }
@@ -306,11 +365,11 @@ void RenderGraph::createFramebuffers(VkDevice dev, VkExtent2D swapchainExtent) {
 }
 
 void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass) {
-    // Ejecutar barreras pre-pass si existen
+    // Ejecutar barreras de imagen pre-pass si existen
     if (!pass.prePassBarriers.empty()) {
         vkCmdPipelineBarrier(
             cmd,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
             0,
             0, nullptr,
@@ -327,6 +386,16 @@ void RenderGraph::execute(VkCommandBuffer cmd, ResourceRegistry& registry, uint3
     }
     
     for (const auto& compiled : compiledPasses) {
+        // Defensive guard: ensure render pass and framebuffer are valid
+        if (compiled.vkRenderPass == VK_NULL_HANDLE) {
+            throw std::runtime_error("Execute failed: vkRenderPass is VK_NULL_HANDLE for pass '" + 
+                                     compiled.definition.name + "'. Call build() before execute().");
+        }
+        if (compiled.framebuffer == VK_NULL_HANDLE) {
+            throw std::runtime_error("Execute failed: framebuffer is VK_NULL_HANDLE for pass '" + 
+                                     compiled.definition.name + "'. Call build() before execute().");
+        }
+        
         // 1. Record barreras de transición
         recordBarriers(cmd, compiled);
         
@@ -336,24 +405,7 @@ void RenderGraph::execute(VkCommandBuffer cmd, ResourceRegistry& registry, uint3
         rpBegin.renderPass = compiled.vkRenderPass;
         rpBegin.framebuffer = compiled.framebuffer;
         // Usar el extent del CompiledPass (calculado en createFramebuffers)
-        // Si es {0,0}, calcularlo dinámicamente desde los attachments como fallback
-        if (compiled.extent.width == 0 || compiled.extent.height == 0) {
-            VkExtent2D fallbackExtent = {800, 600}; // Default fallback
-            if (!compiled.definition.colorAttachments.empty()) {
-                const ResourceHandle* res = compiledRegistry.getResource(compiled.definition.colorAttachments[0]);
-                if (res && !res->isSwapchain) {
-                    fallbackExtent = res->extent;
-                }
-            } else if (!compiled.definition.depthAttachment.empty()) {
-                const ResourceHandle* res = compiledRegistry.getResource(compiled.definition.depthAttachment);
-                if (res) {
-                    fallbackExtent = res->extent;
-                }
-            }
-            rpBegin.renderArea.extent = fallbackExtent;
-        } else {
-            rpBegin.renderArea.extent = compiled.extent;
-        }
+        rpBegin.renderArea.extent = compiled.extent;
         
         // Clear values - uno por cada attachment (color attachments primero, luego depth)
         std::vector<VkClearValue> clearValues;

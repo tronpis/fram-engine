@@ -8,7 +8,7 @@ namespace FarmEngine::Render {
 
 ForwardRenderer::ForwardRenderer() : extent{0, 0} {}
 
-void ForwardRenderer::buildGraph(RenderGraph& graph, VkExtent2D swapchainExtent) {
+void ForwardRenderer::buildGraph(RenderGraph& graph, VkDevice device, VkExtent2D swapchainExtent) {
     extent = swapchainExtent;
     
     RenderGraphBuilder builder;
@@ -34,6 +34,9 @@ void ForwardRenderer::buildGraph(RenderGraph& graph, VkExtent2D swapchainExtent)
     
     // Compilar grafo
     graph.compile(std::move(builder));
+    
+    // Construir Vulkan objects (render passes y framebuffers)
+    graph.build(device, swapchainExtent);
 }
 
 void ForwardRenderer::setupPasses() {
@@ -46,7 +49,7 @@ void ForwardRenderer::setupPasses() {
 
 DeferredRenderer::DeferredRenderer() : extent{0, 0} {}
 
-void DeferredRenderer::buildGraph(RenderGraph& graph, VkExtent2D swapchainExtent) {
+void DeferredRenderer::buildGraph(RenderGraph& graph, VkDevice device, VkExtent2D swapchainExtent) {
     extent = swapchainExtent;
     
     RenderGraphBuilder builder;
@@ -61,6 +64,9 @@ void DeferredRenderer::buildGraph(RenderGraph& graph, VkExtent2D swapchainExtent
     setupPostProcess(builder);
     
     graph.compile(std::move(builder));
+    
+    // Construir Vulkan objects (render passes y framebuffers)
+    graph.build(device, swapchainExtent);
 }
 
 void DeferredRenderer::setupGBuffer(RenderGraphBuilder& builder) {

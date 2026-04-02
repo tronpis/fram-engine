@@ -57,6 +57,14 @@ struct PassDependency {
     VkPipelineStageFlags dstStageMask;
     VkAccessFlags srcAccessMask;
     VkAccessFlags dstAccessMask;
+    
+    // Optional: resource-specific synchronization
+    // If empty, this is a pass-level execution dependency (uses VkMemoryBarrier)
+    // If set, this is a resource-specific dependency (uses VkImageMemoryBarrier)
+    std::string resourceName;
+    VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkImageLayout newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 };
 
 class RenderPass {
@@ -100,6 +108,14 @@ public:
     RenderGraphBuilder& addDependency(uint32_t from, uint32_t to, 
                                       VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                       VkAccessFlags srcAccess, VkAccessFlags dstAccess);
+    
+    // Definir dependencias específicas de recursos (para barreras de imagen)
+    RenderGraphBuilder& addResourceDependency(uint32_t from, uint32_t to,
+                                               const std::string& resourceName,
+                                               VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
+                                               VkAccessFlags srcAccess, VkAccessFlags dstAccess,
+                                               VkImageLayout oldLayout, VkImageLayout newLayout,
+                                               VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT);
 
 private:
     friend class RenderGraph;
