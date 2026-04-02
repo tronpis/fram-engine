@@ -16,7 +16,7 @@ namespace FarmEngine::Render::Examples {
  * Este es el caso de uso principal para FarmEngine - renderizar chunks
  * voxel con iluminación dinámica y oclusión ambiental.
  */
-inline void ChunkRenderingExample(RenderGraph& graph, VkExtent2D swapchainExtent) {
+inline void ChunkRenderingExample(RenderGraph& graph, VkDevice device, VkExtent2D swapchainExtent) {
     RenderGraphBuilder builder;
     
     // 1. Recursos principales
@@ -64,6 +64,7 @@ inline void ChunkRenderingExample(RenderGraph& graph, VkExtent2D swapchainExtent
     });
     
     graph.compile(std::move(builder));
+    graph.build(device, swapchainExtent);
 }
 
 /**
@@ -71,7 +72,7 @@ inline void ChunkRenderingExample(RenderGraph& graph, VkExtent2D swapchainExtent
  * 
  * Muestra cómo añadir un pass de shadow map antes del geometry pass
  */
-inline void ShadowMappingExample(RenderGraph& graph, VkExtent2D extent) {
+inline void ShadowMappingExample(RenderGraph& graph, VkDevice device, VkExtent2D extent) {
     RenderGraphBuilder builder;
     
     // Shadow map resource (alta resolución para calidad)
@@ -111,6 +112,7 @@ inline void ShadowMappingExample(RenderGraph& graph, VkExtent2D extent) {
     );
     
     graph.compile(std::move(builder));
+    graph.build(device, extent);
 }
 
 /**
@@ -118,7 +120,7 @@ inline void ShadowMappingExample(RenderGraph& graph, VkExtent2D extent) {
  * 
  * Técnica post-process para oclusión ambiental en tiempo real
  */
-inline void SSAOExample(RenderGraph& graph, VkExtent2D extent) {
+inline void SSAOExample(RenderGraph& graph, VkDevice device, VkExtent2D extent) {
     RenderGraphBuilder builder;
     
     // GBuffer básico
@@ -159,6 +161,7 @@ inline void SSAOExample(RenderGraph& graph, VkExtent2D extent) {
     });
     
     graph.compile(std::move(builder));
+    graph.build(device, extent);
 }
 
 /**
@@ -166,7 +169,7 @@ inline void SSAOExample(RenderGraph& graph, VkExtent2D extent) {
  * 
  * Pipeline más simple posible para validar integración
  */
-inline void MinimalExample(RenderGraph& graph, VkExtent2D extent) {
+inline void MinimalExample(RenderGraph& graph, VkDevice device, VkExtent2D extent) {
     RenderGraphBuilder builder;
     
     builder.addColorTarget("Backbuffer", VK_FORMAT_B8G8R8A8_SRGB, extent, ResourceLifetime::External);
@@ -184,6 +187,7 @@ inline void MinimalExample(RenderGraph& graph, VkExtent2D extent) {
     });
     
     graph.compile(std::move(builder));
+    graph.build(device, extent);
 }
 
 } // namespace FarmEngine::Render::Examples

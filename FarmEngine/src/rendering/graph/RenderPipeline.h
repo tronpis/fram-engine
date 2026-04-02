@@ -27,7 +27,7 @@ public:
      * 4. Post-Processing
      * 5. Present
      */
-    void buildGraph(RenderGraph& graph, VkExtent2D swapchainExtent);
+    void buildGraph(RenderGraph& graph, VkDevice device, VkExtent2D swapchainExtent);
     
     /**
      * @brief Configura los passes específicos del renderer
@@ -47,7 +47,7 @@ class DeferredRenderer {
 public:
     DeferredRenderer();
     
-    void buildGraph(RenderGraph& graph, VkExtent2D swapchainExtent);
+    void buildGraph(RenderGraph& graph, VkDevice device, VkExtent2D swapchainExtent);
     
     /**
      * Estructura típica de GBuffer:
