@@ -186,7 +186,7 @@ bool Chunk::buildMesh() {
                         fx+1, fy+1, fz+1, 0, 1, 0,
                         fx+1, fy,   fz+1, 0, 1, 0
                     });
-                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 3) - 4;
+                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 6) - 4;
                     opaqueMesh.indices.insert(opaqueMesh.indices.end(), {
                         base, base+1, base+2,
                         base, base+2, base+3
