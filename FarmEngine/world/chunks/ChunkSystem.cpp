@@ -508,8 +508,9 @@ void ChunkManager::processPendingGenerations() {
         chunk->generate(12345); // Use default seed
         
         // Reacquire lock only to insert the finished chunk
-        uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32) | 
-                       static_cast<uint32_t>(chunkZ);
+        // Use proper two's complement for negative coordinates
+        uint64_t key = (static_cast<uint64_t>(static_cast<int64_t>(chunkX)) << 32) | 
+                       (static_cast<uint64_t>(chunkZ) & 0xFFFFFFFFULL);
         
         {
             std::lock_guard<std::mutex> lock(chunkMutex);
