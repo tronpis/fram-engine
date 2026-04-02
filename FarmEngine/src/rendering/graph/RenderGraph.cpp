@@ -135,16 +135,9 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
     compiledRegistry.resources = std::move(builder.resources);
     
     // Limpiar estado previo antes de compilar
-    for (auto& compiled : compiledPasses) {
-        compiled.attachments.clear();
-        compiled.colorRefs.clear();
-        compiled.dependencies.clear();
-        compiled.depthRef = {};
-        compiled.vkRenderPass = VK_NULL_HANDLE;
-        compiled.framebuffer = VK_NULL_HANDLE;
-    }
-    
+    compiledPasses.clear();
     compiledPasses.resize(builder.passes.size());
+
     
     // Construir mapa nombre->índice
     for (size_t i = 0; i < compiledRegistry.resources.size(); ++i) {
