@@ -244,6 +244,14 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
                                      " is out of range (pass count: " + std::to_string(compiledPasses.size()) + ")");
         }
         
+        // Validate dependency direction: producer must execute before consumer
+        // Since passes execute in sequential order, from must be < to
+        if (dep.from >= dep.to) {
+            throw std::runtime_error("Invalid dependency direction: 'from' pass index (" + std::to_string(dep.from) + 
+                                     ") must be less than 'to' pass index (" + std::to_string(dep.to) + 
+                                     "). Passes execute in sequential order, so the producer pass must be added before the consumer pass.");
+        }
+        
         if (!dep.resourceName.empty()) {
             // Resource-specific dependency: store as pending barrier for resolution at execution time
             const ResourceHandle* res = compiledRegistry.getResource(dep.resourceName);
@@ -366,6 +374,9 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
     VkPipelineStageFlags combinedSrcStage = 0;
     VkPipelineStageFlags combinedDstStage = 0;
     
+    // Combine dependency flags from all pass-level dependencies
+    VkDependencyFlags combinedDependencyFlags = 0;
+    
     // Process pass-level dependencies (emit as VkMemoryBarrier)
     std::vector<VkMemoryBarrier> memoryBarriers;
     for (const auto& dep : pass.passLevelDependencies) {
@@ -377,6 +388,7 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
         
         combinedSrcStage |= dep.srcStageMask;
         combinedDstStage |= dep.dstStageMask;
+        combinedDependencyFlags |= dep.dependencyFlags;
     }
     
     // Process resource-specific barriers (resolve image at runtime)
@@ -421,7 +433,7 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
             cmd,
             srcStage,
             dstStage,
-            0,
+            combinedDependencyFlags,
             static_cast<uint32_t>(memoryBarriers.size()),
             memoryBarriers.data(),
             0, nullptr,

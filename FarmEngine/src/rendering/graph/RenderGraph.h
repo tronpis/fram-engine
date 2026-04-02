@@ -105,11 +105,15 @@ public:
                                 const std::function<void(RenderPass&)>& configureFunc);
     
     // Definir dependencias explícitas (opcional, se pueden inferir)
+    // Note: The 'from' pass index must be less than the 'to' pass index, as passes execute
+    // in sequential order. Attempting to add a dependency where from >= to will throw an error.
     RenderGraphBuilder& addDependency(uint32_t from, uint32_t to, 
                                       VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                       VkAccessFlags srcAccess, VkAccessFlags dstAccess);
     
     // Definir dependencias específicas de recursos (para barreras de imagen)
+    // Note: The 'from' pass index must be less than the 'to' pass index, as passes execute
+    // in sequential order. Attempting to add a dependency where from >= to will throw an error.
     RenderGraphBuilder& addResourceDependency(uint32_t from, uint32_t to,
                                                const std::string& resourceName,
                                                VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
