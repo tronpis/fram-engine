@@ -13,6 +13,10 @@ const ResourceHandle* ResourceRegistry::getResource(const std::string& name) con
     if (it == nameToIndex.end()) {
         return nullptr;
     }
+    // Defensive bounds check to prevent out-of-bounds access with stale indices
+    if (it->second >= resources.size()) {
+        return nullptr;
+    }
     return &resources[it->second];
 }
 
@@ -123,10 +127,13 @@ RenderGraphBuilder& RenderGraphBuilder::addDependency(uint32_t from, uint32_t to
 // ============================================================================
 // RenderGraph Implementation
 // ============================================================================
+
+void RenderGraph::compile(RenderGraphBuilder&& builder) {
     // Copiar recursos y passes
     compiledRegistry.resources = std::move(builder.resources);
     
     // Limpiar estado previo antes de compilar
+    compiledRegistry.nameToIndex.clear();
     compiledPasses.clear();
     
     compiledPasses.resize(builder.passes.size());
@@ -197,9 +204,29 @@ RenderGraphBuilder& RenderGraphBuilder::addDependency(uint32_t from, uint32_t to
         // TODO: Implementar análisis de dependencias del grafo
     }
     
-    // Las dependencias entre passes separados se manejan mediante barreras de pipeline
-    // registradas durante la ejecución, no mediante VkSubpassDependency
-    // VkSubpassDependency solo es válido para subpasses dentro del mismo VkRenderPass
+    // Procesar dependencias explícitas y convertirlas en barreras por-pass
+    for (const auto& dep : builder.explicitDependencies) {
+        if (dep.to < compiledPasses.size()) {
+            VkImageMemoryBarrier barrier{};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.srcAccessMask = dep.srcAccessMask;
+            barrier.dstAccessMask = dep.dstAccessMask;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = VK_NULL_HANDLE; // Se establecerá durante la ejecución
+            barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+            
+            compiledPasses[dep.to].prePassBarriers.push_back(barrier);
+        }
+    }
+}
+
+void RenderGraph::build(VkDevice dev, VkExtent2D swapchainExtent) {
+    device = dev;
+    createRenderPasses(device);
+    createFramebuffers(device, swapchainExtent);
 }
 
 void RenderGraph::createRenderPasses(VkDevice dev) {
@@ -308,7 +335,25 @@ void RenderGraph::execute(VkCommandBuffer cmd, ResourceRegistry& registry, uint3
         rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rpBegin.renderPass = compiled.vkRenderPass;
         rpBegin.framebuffer = compiled.framebuffer;
-        rpBegin.renderArea.extent = compiled.extent;
+        // Usar el extent del CompiledPass (calculado en createFramebuffers)
+        // Si es {0,0}, calcularlo dinámicamente desde los attachments como fallback
+        if (compiled.extent.width == 0 || compiled.extent.height == 0) {
+            VkExtent2D fallbackExtent = {800, 600}; // Default fallback
+            if (!compiled.definition.colorAttachments.empty()) {
+                const ResourceHandle* res = compiledRegistry.getResource(compiled.definition.colorAttachments[0]);
+                if (res && !res->isSwapchain) {
+                    fallbackExtent = res->extent;
+                }
+            } else if (!compiled.definition.depthAttachment.empty()) {
+                const ResourceHandle* res = compiledRegistry.getResource(compiled.definition.depthAttachment);
+                if (res) {
+                    fallbackExtent = res->extent;
+                }
+            }
+            rpBegin.renderArea.extent = fallbackExtent;
+        } else {
+            rpBegin.renderArea.extent = compiled.extent;
+        }
         
         // Clear values - uno por cada attachment (color attachments primero, luego depth)
         std::vector<VkClearValue> clearValues;

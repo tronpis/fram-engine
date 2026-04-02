@@ -131,7 +131,9 @@ public:
     RenderGraph() = default;
     ~RenderGraph();
     
+    void setDevice(VkDevice dev) { device = dev; }
     void compile(RenderGraphBuilder&& builder);
+    void build(VkDevice dev, VkExtent2D swapchainExtent);
     void execute(VkCommandBuffer cmd, ResourceRegistry& registry, uint32_t frameIndex);
     
     // Acceso a recursos compilados
