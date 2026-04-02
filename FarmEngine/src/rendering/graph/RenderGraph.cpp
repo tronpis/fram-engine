@@ -123,17 +123,14 @@ RenderGraphBuilder& RenderGraphBuilder::addDependency(uint32_t from, uint32_t to
 // ============================================================================
 // RenderGraph Implementation
 // ============================================================================
-
-RenderGraph::~RenderGraph() {
-    // Destructor - cleanup se hace explícitamente en cleanup()
-}
-
-void RenderGraph::compile(RenderGraphBuilder&& builder) {
-    device = VK_NULL_HANDLE; // Se seteará cuando tengamos contexto Vulkan
-    
     // Copiar recursos y passes
     compiledRegistry.resources = std::move(builder.resources);
+    
+    // Limpiar estado previo antes de compilar
+    compiledPasses.clear();
+    
     compiledPasses.resize(builder.passes.size());
+
     
     // Construir mapa nombre->índice
     for (size_t i = 0; i < compiledRegistry.resources.size(); ++i) {
@@ -200,21 +197,9 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
         // TODO: Implementar análisis de dependencias del grafo
     }
     
-    // Añadir dependencias explícitas
-    for (const auto& dep : builder.explicitDependencies) {
-        if (dep.from < compiledPasses.size() && dep.to < compiledPasses.size()) {
-            VkSubpassDependency vkDep{};
-            vkDep.srcSubpass = dep.from;
-            vkDep.dstSubpass = dep.to;
-            vkDep.srcStageMask = dep.srcStageMask;
-            vkDep.dstStageMask = dep.dstStageMask;
-            vkDep.srcAccessMask = dep.srcAccessMask;
-            vkDep.dstAccessMask = dep.dstAccessMask;
-            vkDep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-            
-            compiledPasses[dep.to].dependencies.push_back(vkDep);
-        }
-    }
+    // Las dependencias entre passes separados se manejan mediante barreras de pipeline
+    // registradas durante la ejecución, no mediante VkSubpassDependency
+    // VkSubpassDependency solo es válido para subpasses dentro del mismo VkRenderPass
 }
 
 void RenderGraph::createRenderPasses(VkDevice dev) {
@@ -251,20 +236,32 @@ void RenderGraph::createFramebuffers(VkDevice dev, VkExtent2D swapchainExtent) {
         // Obtener views de todos los attachments
         for (const auto& colorName : compiled.definition.colorAttachments) {
             const ResourceHandle* res = compiledRegistry.getResource(colorName);
-            if (res) {
-                attachments.push_back(res->imageView);
-                if (!res->isSwapchain) {
-                    extent = res->extent;
-                }
+            if (!res) {
+                throw std::runtime_error("Color attachment not found: " + colorName);
+            }
+            if (res->imageView == VK_NULL_HANDLE) {
+                throw std::runtime_error("Color attachment has null imageView: " + colorName + 
+                                         ". For external targets, use addExternalImage() instead of addColorTarget().");
+            }
+            attachments.push_back(res->imageView);
+            if (!res->isSwapchain) {
+                extent = res->extent;
             }
         }
         
         if (!compiled.definition.depthAttachment.empty()) {
             const ResourceHandle* res = compiledRegistry.getResource(compiled.definition.depthAttachment);
-            if (res) {
-                attachments.push_back(res->imageView);
+            if (!res) {
+                throw std::runtime_error("Depth attachment not found: " + compiled.definition.depthAttachment);
             }
+            if (res->imageView == VK_NULL_HANDLE) {
+                throw std::runtime_error("Depth attachment has null imageView: " + compiled.definition.depthAttachment);
+            }
+            attachments.push_back(res->imageView);
         }
+        
+        // Guardar el extent calculado en el CompiledPass para usarlo en execute()
+        compiled.extent = extent;
         
         VkFramebufferCreateInfo fbInfo{};
         fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -311,18 +308,20 @@ void RenderGraph::execute(VkCommandBuffer cmd, ResourceRegistry& registry, uint3
         rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rpBegin.renderPass = compiled.vkRenderPass;
         rpBegin.framebuffer = compiled.framebuffer;
-        rpBegin.renderArea.extent = {compiled.attachments.empty() ? 0 : 
-                                     registry.resources[0].extent.width, 
-                                     compiled.attachments.empty() ? 0 : 
-                                     registry.resources[0].extent.height};
+        rpBegin.renderArea.extent = compiled.extent;
         
-        // Clear values
+        // Clear values - uno por cada attachment (color attachments primero, luego depth)
         std::vector<VkClearValue> clearValues;
-        if (!compiled.definition.colorAttachments.empty()) {
+        clearValues.reserve(compiled.attachments.size());
+        
+        // Color attachments
+        for (size_t i = 0; i < compiled.definition.colorAttachments.size(); ++i) {
             VkClearValue colorClear{};
             colorClear.color = compiled.definition.clearColorValue;
             clearValues.push_back(colorClear);
         }
+        
+        // Depth attachment
         if (!compiled.definition.depthAttachment.empty()) {
             VkClearValue depthClear{};
             depthClear.depthStencil = compiled.definition.clearDepthValue;

@@ -8,6 +8,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include <glm/gtx/norm.hpp>
 
 namespace FarmEngine {
 

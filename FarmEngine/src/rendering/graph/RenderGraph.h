@@ -149,6 +149,9 @@ private:
         VkRenderPass vkRenderPass = VK_NULL_HANDLE;
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
         
+        // Extent calculado durante la creación del framebuffer para usar en execute()
+        VkExtent2D extent = {0, 0};
+        
         // Barreras de transición antes del pass
         std::vector<VkImageMemoryBarrier> prePassBarriers;
     };
