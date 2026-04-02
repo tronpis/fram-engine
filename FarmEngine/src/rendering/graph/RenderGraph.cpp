@@ -466,7 +466,7 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
         );
     } else if (hasMemoryBarriers || hasImageBarriers) {
         // Same flags or only one type of barrier - can combine in single call
-        VkDependencyFlags finalFlags = hasMemoryBarriers ? combinedMemoryDependencyFlags : combinedImageDependencyFlags;
+        VkDependencyFlags finalFlags = !memoryBarriers.empty() ? combinedMemoryDependencyFlags : combinedImageDependencyFlags;
         vkCmdPipelineBarrier(
             cmd,
             srcStage,
