@@ -116,7 +116,8 @@ RenderGraphBuilder& RenderGraphBuilder::addDependency(uint32_t from, uint32_t to
                                                        VkPipelineStageFlags srcStage,
                                                        VkPipelineStageFlags dstStage,
                                                        VkAccessFlags srcAccess,
-                                                       VkAccessFlags dstAccess) {
+                                                       VkAccessFlags dstAccess,
+                                                       VkDependencyFlags dependencyFlags) {
     PassDependency dep;
     dep.from = from;
     dep.to = to;
@@ -124,6 +125,7 @@ RenderGraphBuilder& RenderGraphBuilder::addDependency(uint32_t from, uint32_t to
     dep.dstStageMask = dstStage;
     dep.srcAccessMask = srcAccess;
     dep.dstAccessMask = dstAccess;
+    dep.dependencyFlags = dependencyFlags;
     explicitDependencies.push_back(dep);
     return *this;
 }
@@ -136,7 +138,8 @@ RenderGraphBuilder& RenderGraphBuilder::addResourceDependency(uint32_t from, uin
                                                                VkAccessFlags dstAccess,
                                                                VkImageLayout oldLayout,
                                                                VkImageLayout newLayout,
-                                                               VkImageAspectFlags aspectMask) {
+                                                               VkImageAspectFlags aspectMask,
+                                                               VkDependencyFlags dependencyFlags) {
     PassDependency dep;
     dep.from = from;
     dep.to = to;
@@ -148,6 +151,7 @@ RenderGraphBuilder& RenderGraphBuilder::addResourceDependency(uint32_t from, uin
     dep.oldLayout = oldLayout;
     dep.newLayout = newLayout;
     dep.aspectMask = aspectMask;
+    dep.dependencyFlags = dependencyFlags;
     explicitDependencies.push_back(dep);
     return *this;
 }
@@ -268,6 +272,7 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
             pendingBarrier.oldLayout = dep.oldLayout;
             pendingBarrier.newLayout = dep.newLayout;
             pendingBarrier.aspectMask = dep.aspectMask;
+            pendingBarrier.dependencyFlags = dep.dependencyFlags;
             
             compiledPasses[dep.to].pendingResourceBarriers.push_back(pendingBarrier);
         } else {
@@ -279,7 +284,7 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
             passDep.dstStageMask = dep.dstStageMask;
             passDep.srcAccessMask = dep.srcAccessMask;
             passDep.dstAccessMask = dep.dstAccessMask;
-            passDep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+            passDep.dependencyFlags = dep.dependencyFlags;
             
             compiledPasses[dep.to].passLevelDependencies.push_back(passDep);
         }
@@ -374,8 +379,8 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
     VkPipelineStageFlags combinedSrcStage = 0;
     VkPipelineStageFlags combinedDstStage = 0;
     
-    // Combine dependency flags from all pass-level dependencies
-    VkDependencyFlags combinedDependencyFlags = 0;
+    // Combine dependency flags from all pass-level dependencies (for memory barriers only)
+    VkDependencyFlags combinedMemoryDependencyFlags = 0;
     
     // Process pass-level dependencies (emit as VkMemoryBarrier)
     std::vector<VkMemoryBarrier> memoryBarriers;
@@ -388,11 +393,13 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
         
         combinedSrcStage |= dep.srcStageMask;
         combinedDstStage |= dep.dstStageMask;
-        combinedDependencyFlags |= dep.dependencyFlags;
+        combinedMemoryDependencyFlags |= dep.dependencyFlags;
     }
     
     // Process resource-specific barriers (resolve image at runtime)
+    // Collect dependency flags from resource barriers separately
     std::vector<VkImageMemoryBarrier> imageBarriers;
+    VkDependencyFlags combinedImageDependencyFlags = 0;
     for (const auto& pending : pass.pendingResourceBarriers) {
         VkImage image = registry.getImage(pending.resourceName);
         const ResourceHandle* res = registry.getResource(pending.resourceName);
@@ -421,19 +428,50 @@ void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, 
         
         combinedSrcStage |= pending.srcStageMask;
         combinedDstStage |= pending.dstStageMask;
+        combinedImageDependencyFlags |= pending.dependencyFlags;
     }
     
-    // Emit barriers if any exist
-    if (!memoryBarriers.empty() || !imageBarriers.empty()) {
-        // Use combined stage masks, or fallback to ALL_COMMANDS if no stages were specified
-        VkPipelineStageFlags srcStage = combinedSrcStage != 0 ? combinedSrcStage : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        VkPipelineStageFlags dstStage = combinedDstStage != 0 ? combinedDstStage : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    // Emit barriers - use separate calls when dependency flags differ to avoid
+    // unintentionally applying flags (like VK_DEPENDENCY_BY_REGION_BIT) to all barrier types
+    const bool hasMemoryBarriers = !memoryBarriers.empty();
+    const bool hasImageBarriers = !imageBarriers.empty();
+    const bool flagsDiffer = combinedMemoryDependencyFlags != combinedImageDependencyFlags;
+    
+    // Use combined stage masks, or fallback to ALL_COMMANDS if no stages were specified
+    VkPipelineStageFlags srcStage = combinedSrcStage != 0 ? combinedSrcStage : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    VkPipelineStageFlags dstStage = combinedDstStage != 0 ? combinedDstStage : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    
+    if (hasMemoryBarriers && hasImageBarriers && flagsDiffer) {
+        // Emit separate barrier calls to keep dependency flags isolated
+        vkCmdPipelineBarrier(
+            cmd,
+            srcStage,
+            dstStage,
+            combinedMemoryDependencyFlags,
+            static_cast<uint32_t>(memoryBarriers.size()),
+            memoryBarriers.data(),
+            0, nullptr,
+            0, nullptr
+        );
         
         vkCmdPipelineBarrier(
             cmd,
             srcStage,
             dstStage,
-            combinedDependencyFlags,
+            combinedImageDependencyFlags,
+            0, nullptr,
+            0, nullptr,
+            static_cast<uint32_t>(imageBarriers.size()),
+            imageBarriers.data()
+        );
+    } else if (hasMemoryBarriers || hasImageBarriers) {
+        // Same flags or only one type of barrier - can combine in single call
+        VkDependencyFlags finalFlags = hasMemoryBarriers ? combinedMemoryDependencyFlags : combinedImageDependencyFlags;
+        vkCmdPipelineBarrier(
+            cmd,
+            srcStage,
+            dstStage,
+            finalFlags,
             static_cast<uint32_t>(memoryBarriers.size()),
             memoryBarriers.data(),
             0, nullptr,

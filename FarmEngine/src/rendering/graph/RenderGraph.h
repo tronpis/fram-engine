@@ -65,6 +65,7 @@ struct PassDependency {
     VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImageLayout newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    VkDependencyFlags dependencyFlags = 0;
 };
 
 class RenderPass {
@@ -109,7 +110,8 @@ public:
     // in sequential order. Attempting to add a dependency where from >= to will throw an error.
     RenderGraphBuilder& addDependency(uint32_t from, uint32_t to, 
                                       VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
-                                      VkAccessFlags srcAccess, VkAccessFlags dstAccess);
+                                      VkAccessFlags srcAccess, VkAccessFlags dstAccess,
+                                      VkDependencyFlags dependencyFlags = 0);
     
     // Definir dependencias específicas de recursos (para barreras de imagen)
     // Note: The 'from' pass index must be less than the 'to' pass index, as passes execute
@@ -119,7 +121,8 @@ public:
                                                VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                                VkAccessFlags srcAccess, VkAccessFlags dstAccess,
                                                VkImageLayout oldLayout, VkImageLayout newLayout,
-                                               VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT);
+                                               VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                               VkDependencyFlags dependencyFlags = 0);
 
 private:
     friend class RenderGraph;
@@ -172,6 +175,7 @@ private:
         VkImageLayout oldLayout;
         VkImageLayout newLayout;
         VkImageAspectFlags aspectMask;
+        VkDependencyFlags dependencyFlags = 0;
     };
     
     // Pass-level execution dependency info - emitted as VkMemoryBarrier at execution time
