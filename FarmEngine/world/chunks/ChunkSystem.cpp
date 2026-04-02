@@ -343,7 +343,7 @@ Chunk* ChunkManager::getChunk(int32_t chunkX, int32_t chunkZ) {
 
 Chunk* ChunkManager::getChunkAtWorldPos(const glm::vec3& worldPos) {
     glm::ivec3 chunkCoords = worldToChunk(worldPos);
-    return getChunk(chunkCoords.x, chunkCoords.y);
+    return getChunk(chunkCoords.x, chunkCoords.z);
 }
 
 void ChunkManager::requestChunkGeneration(int32_t chunkX, int32_t chunkZ) {
