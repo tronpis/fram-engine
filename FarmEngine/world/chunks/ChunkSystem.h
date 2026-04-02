@@ -11,6 +11,7 @@ namespace FarmEngine {
 
 struct ChunkConfig {
     int32_t chunkSize = 32;
+    int32_t chunkHeight = 64;
     int32_t renderDistance = 8;
     float lodDistances[4] = {20.0f, 50.0f, 100.0f, 200.0f};
 };
@@ -115,8 +116,8 @@ private:
     
     ChunkConfig config;
     
-    // Chunks cargados: key = (chunkX << 32) | chunkZ
-    std::unordered_map<int64_t, std::unique_ptr<Chunk>> chunks;
+    // Chunks cargados: key = packed uint64 from chunk coords
+    std::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;
     mutable std::mutex chunkMutex;
     
     // Cola de generación

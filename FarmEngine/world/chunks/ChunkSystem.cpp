@@ -21,7 +21,7 @@ Chunk::Chunk(int32_t x, int32_t z, const ChunkConfig& config)
     , config(config)
 {
     const int32_t size = config.chunkSize;
-    const int32_t height = 64; // Default chunk height
+    const int32_t height = config.chunkHeight;
     const size_t totalBlocks = static_cast<size_t>(size) * height * size;
     
     blocks.resize(totalBlocks, 0);
@@ -72,7 +72,7 @@ bool Chunk::generate(int32_t seed) {
             Biome biome = biomeMap[z * size + x];
             
             // Simple block placement logic
-            for (int32_t y = 0; y < 64; ++y) {
+            for (int32_t y = 0; y < config.chunkHeight; ++y) {
                 uint8_t blockID = 0; // Air
                 
                 if (y < static_cast<int32_t>(height) - 3) {
@@ -114,7 +114,7 @@ bool Chunk::saveToDisk(const std::string& path) {
 
 uint8_t Chunk::getBlock(int32_t x, int32_t y, int32_t z) const {
     if (x < 0 || x >= config.chunkSize ||
-        y < 0 || y >= 64 ||
+        y < 0 || y >= config.chunkHeight ||
         z < 0 || z >= config.chunkSize) {
         return 0;
     }
@@ -129,7 +129,7 @@ uint8_t Chunk::getBlock(int32_t x, int32_t y, int32_t z) const {
 
 void Chunk::setBlock(int32_t x, int32_t y, int32_t z, uint8_t blockID) {
     if (x < 0 || x >= config.chunkSize ||
-        y < 0 || y >= 64 ||
+        y < 0 || y >= config.chunkHeight ||
         z < 0 || z >= config.chunkSize) {
         return;
     }
@@ -156,7 +156,7 @@ bool Chunk::buildMesh() {
     
     const int32_t size = config.chunkSize;
     
-    for (int32_t y = 0; y < 64; ++y) {
+    for (int32_t y = 0; y < config.chunkHeight; ++y) {
         for (int32_t z = 0; z < size; ++z) {
             for (int32_t x = 0; x < size; ++x) {
                 uint8_t block = getBlock(x, y, z);
@@ -201,7 +201,7 @@ bool Chunk::buildMesh() {
                         fx,   fy+1, fz,   -1, 0, 0,
                         fx,   fy,   fz,   -1, 0, 0
                     });
-                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 3) - 4;
+                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 6) - 4;
                     opaqueMesh.indices.insert(opaqueMesh.indices.end(), {
                         base, base+1, base+2,
                         base, base+2, base+3
@@ -216,7 +216,7 @@ bool Chunk::buildMesh() {
                         fx+1, fy+1, fz+1, 0, 1, 0,
                         fx+1, fy+1, fz,   0, 1, 0
                     });
-                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 3) - 4;
+                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 6) - 4;
                     opaqueMesh.indices.insert(opaqueMesh.indices.end(), {
                         base, base+1, base+2,
                         base, base+2, base+3
@@ -231,7 +231,7 @@ bool Chunk::buildMesh() {
                         fx+1, fy, fz,   0, -1, 0,
                         fx+1, fy, fz+1, 0, -1, 0
                     });
-                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 3) - 4;
+                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 6) - 4;
                     opaqueMesh.indices.insert(opaqueMesh.indices.end(), {
                         base, base+1, base+2,
                         base, base+2, base+3
@@ -246,7 +246,7 @@ bool Chunk::buildMesh() {
                         fx+1, fy+1, fz+1, 0, 0, 1,
                         fx+1, fy,   fz+1, 0, 0, 1
                     });
-                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 3) - 4;
+                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 6) - 4;
                     opaqueMesh.indices.insert(opaqueMesh.indices.end(), {
                         base, base+1, base+2,
                         base, base+2, base+3
@@ -261,7 +261,7 @@ bool Chunk::buildMesh() {
                         fx,   fy+1, fz,   0, 0, -1,
                         fx,   fy,   fz,   0, 0, -1
                     });
-                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 3) - 4;
+                    uint32_t base = static_cast<uint32_t>(opaqueMesh.vertices.size() / 6) - 4;
                     opaqueMesh.indices.insert(opaqueMesh.indices.end(), {
                         base, base+1, base+2,
                         base, base+2, base+3
@@ -333,8 +333,9 @@ void ChunkManager::update(const glm::vec3& playerPosition, float deltaTime) {
 Chunk* ChunkManager::getChunk(int32_t chunkX, int32_t chunkZ) {
     std::lock_guard<std::mutex> lock(chunkMutex);
     
-    int64_t key = (static_cast<int64_t>(chunkX) << 32) | 
-                  (static_cast<uint32_t>(chunkZ) & 0xFFFFFFFF);
+    // Use proper two's complement for negative coordinates
+    uint64_t key = (static_cast<uint64_t>(static_cast<int64_t>(chunkX)) << 32) | 
+                   (static_cast<uint64_t>(chunkZ) & 0xFFFFFFFFULL);
     
     auto it = chunks.find(key);
     if (it != chunks.end()) {
@@ -384,8 +385,9 @@ void ChunkManager::loadChunksAroundPlayer(const glm::vec3& playerPosition) {
     glm::vec2 playerChunkPos(playerChunkX, playerChunkZ);
     std::sort(chunkOrder.begin(), chunkOrder.end(),
         [playerChunkPos](const auto& a, const auto& b) {
-            float distA = glm::length(glm::vec2(a.first, a.second) - playerChunkPos);
-            float distB = glm::length(glm::vec2(b.first, b.second) - playerChunkPos);
+            // Use squared distance to avoid expensive sqrt operations
+            float distA = glm::length2(glm::vec2(a.first, a.second) - playerChunkPos);
+            float distB = glm::length2(glm::vec2(b.first, b.second) - playerChunkPos);
             return distA < distB;
         });
     
@@ -409,7 +411,7 @@ void ChunkManager::unloadDistantChunks(const glm::vec3& playerPosition) {
     
     int32_t unloadDistance = config.renderDistance + 2; // Buffer zone
     
-    std::vector<int64_t> chunksToRemove;
+    std::vector<uint64_t> chunksToRemove;
     
     std::lock_guard<std::mutex> lock(chunkMutex);
     
@@ -431,7 +433,7 @@ void ChunkManager::unloadDistantChunks(const glm::vec3& playerPosition) {
     }
     
     // Remove distant chunks
-    for (int64_t key : chunksToRemove) {
+    for (uint64_t key : chunksToRemove) {
         chunks.erase(key);
     }
 }
@@ -483,26 +485,37 @@ glm::ivec3 ChunkManager::worldToLocal(const glm::vec3& worldPos) const {
 }
 
 void ChunkManager::processPendingGenerations() {
-    std::lock_guard<std::mutex> lock(chunkMutex);
+    // Pop tasks from pendingGeneration under lock
+    std::vector<std::pair<int32_t, int32_t>> tasksToProcess;
     
-    const size_t maxPerFrame = 4; // Limit generations per frame
-    size_t processed = 0;
-    
-    auto it = pendingGeneration.begin();
-    while (it != pendingGeneration.end() && processed < maxPerFrame) {
-        int32_t chunkX = it->first;
-        int32_t chunkZ = it->second;
+    {
+        std::lock_guard<std::mutex> lock(chunkMutex);
         
-        // Create and generate chunk
+        const size_t maxPerFrame = 4; // Limit generations per frame
+        size_t count = 0;
+        
+        auto it = pendingGeneration.begin();
+        while (it != pendingGeneration.end() && count < maxPerFrame) {
+            tasksToProcess.push_back(*it);
+            it = pendingGeneration.erase(it);
+            ++count;
+        }
+    }
+    
+    // Generate chunks without holding the lock
+    for (const auto& [chunkX, chunkZ] : tasksToProcess) {
         auto chunk = std::make_unique<Chunk>(chunkX, chunkZ, config);
         chunk->generate(12345); // Use default seed
         
-        int64_t key = (static_cast<int64_t>(chunkX) << 32) | 
-                      (static_cast<uint32_t>(chunkZ) & 0xFFFFFFFF);
-        chunks[key] = std::move(chunk);
+        // Reacquire lock only to insert the finished chunk
+        // Use proper two's complement for negative coordinates
+        uint64_t key = (static_cast<uint64_t>(static_cast<int64_t>(chunkX)) << 32) | 
+                       (static_cast<uint64_t>(chunkZ) & 0xFFFFFFFFULL);
         
-        it = pendingGeneration.erase(it);
-        ++processed;
+        {
+            std::lock_guard<std::mutex> lock(chunkMutex);
+            chunks[key] = std::move(chunk);
+        }
     }
 }
 
@@ -558,8 +571,9 @@ void ChunkManager::updateVisibleChunks(const glm::vec3& cameraPosition) {
             glm::vec3 posA = a->getPosition();
             glm::vec3 posB = b->getPosition();
             
-            float distA = glm::length(posA - cameraPosition);
-            float distB = glm::length(posB - cameraPosition);
+            // Use squared distance to avoid expensive sqrt operations
+            float distA = glm::length2(posA - cameraPosition);
+            float distB = glm::length2(posB - cameraPosition);
             
             return distA < distB;
         });
@@ -763,13 +777,14 @@ CullingResult CullingSystem::cullChunks(const std::vector<Chunk*>& chunks,
         
         glm::vec3 chunkPos = chunk->getPosition();
         float chunkSize = static_cast<float>(config.chunkSize);
+        float chunkHeight = static_cast<float>(config.chunkHeight);
         
         // Create bounding box for chunk
         glm::vec3 minBound(chunkPos.x, 0, chunkPos.z);
-        glm::vec3 maxBound(chunkPos.x + chunkSize, 64, chunkPos.z + chunkSize);
+        glm::vec3 maxBound(chunkPos.x + chunkSize, chunkHeight, chunkPos.z + chunkSize);
         
         // Distance culling
-        glm::vec3 chunkCenter = chunkPos + glm::vec3(chunkSize * 0.5f, 32, chunkSize * 0.5f);
+        glm::vec3 chunkCenter = chunkPos + glm::vec3(chunkSize * 0.5f, chunkHeight * 0.5f, chunkSize * 0.5f);
         if (shouldCullByDistance(chunkCenter, cameraPosition, maxDistance)) {
             result.culled++;
             continue;
