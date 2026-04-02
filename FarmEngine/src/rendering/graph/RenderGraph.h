@@ -158,20 +158,45 @@ public:
     void cleanup(VkDevice device);
 
 private:
+    // Pending barrier info for resource-specific dependencies - resolved at execution time
+    struct PendingResourceBarrier {
+        std::string resourceName;
+        VkPipelineStageFlags srcStageMask;
+        VkPipelineStageFlags dstStageMask;
+        VkAccessFlags srcAccessMask;
+        VkAccessFlags dstAccessMask;
+        VkImageLayout oldLayout;
+        VkImageLayout newLayout;
+        VkImageAspectFlags aspectMask;
+    };
+    
+    // Pass-level execution dependency info - emitted as VkMemoryBarrier at execution time
+    struct PassLevelDependency {
+        uint32_t fromPass;
+        uint32_t toPass;
+        VkPipelineStageFlags srcStageMask;
+        VkPipelineStageFlags dstStageMask;
+        VkAccessFlags srcAccessMask;
+        VkAccessFlags dstAccessMask;
+        VkDependencyFlags dependencyFlags;
+    };
+    
     struct CompiledPass {
         RenderPass definition;
         std::vector<VkAttachmentDescription> attachments;
         std::vector<VkAttachmentReference> colorRefs;
         VkAttachmentReference depthRef = {VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED};
-        std::vector<VkSubpassDependency> dependencies;
         VkRenderPass vkRenderPass = VK_NULL_HANDLE;
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
         
         // Extent calculado durante la creación del framebuffer para usar en execute()
         VkExtent2D extent = {0, 0};
         
-        // Barreras de transición antes del pass
-        std::vector<VkImageMemoryBarrier> prePassBarriers;
+        // Resource-specific barriers (resolved at execution time)
+        std::vector<PendingResourceBarrier> pendingResourceBarriers;
+        
+        // Pass-level dependencies (emitted as memory barriers at execution time)
+        std::vector<PassLevelDependency> passLevelDependencies;
     };
     
     std::vector<CompiledPass> compiledPasses;
@@ -182,7 +207,7 @@ private:
     
     void createRenderPasses(VkDevice dev);
     void createFramebuffers(VkDevice dev, VkExtent2D swapchainExtent);
-    void recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass);
+    void recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, const ResourceRegistry& registry);
 };
 
 } // namespace FarmEngine::Render

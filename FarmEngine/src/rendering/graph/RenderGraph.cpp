@@ -232,7 +232,7 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
         // TODO: Implementar análisis de dependencias del grafo
     }
     
-    // Procesar dependencias explícitas y convertirlas en barreras por-pass
+    // Process explicit dependencies and convert them to per-pass barriers
     for (const auto& dep : builder.explicitDependencies) {
         // Validate dependency indices
         if (dep.from >= compiledPasses.size()) {
@@ -245,39 +245,35 @@ void RenderGraph::compile(RenderGraphBuilder&& builder) {
         }
         
         if (!dep.resourceName.empty()) {
-            // Resource-specific dependency: create VkImageMemoryBarrier
+            // Resource-specific dependency: store as pending barrier for resolution at execution time
             const ResourceHandle* res = compiledRegistry.getResource(dep.resourceName);
             if (!res) {
                 throw std::runtime_error("Resource dependency references unknown resource: " + dep.resourceName);
             }
             
-            VkImageMemoryBarrier barrier{};
-            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barrier.srcAccessMask = dep.srcAccessMask;
-            barrier.dstAccessMask = dep.dstAccessMask;
-            barrier.oldLayout = dep.oldLayout;
-            barrier.newLayout = dep.newLayout;
-            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            barrier.image = res->image;
-            barrier.subresourceRange = {
-                dep.aspectMask,
-                0, res->mipLevels,
-                0, res->arrayLayers
-            };
+            PendingResourceBarrier pendingBarrier{};
+            pendingBarrier.resourceName = dep.resourceName;
+            pendingBarrier.srcStageMask = dep.srcStageMask;
+            pendingBarrier.dstStageMask = dep.dstStageMask;
+            pendingBarrier.srcAccessMask = dep.srcAccessMask;
+            pendingBarrier.dstAccessMask = dep.dstAccessMask;
+            pendingBarrier.oldLayout = dep.oldLayout;
+            pendingBarrier.newLayout = dep.newLayout;
+            pendingBarrier.aspectMask = dep.aspectMask;
             
-            compiledPasses[dep.to].prePassBarriers.push_back(barrier);
+            compiledPasses[dep.to].pendingResourceBarriers.push_back(pendingBarrier);
         } else {
-            // Pass-level execution dependency: store in CompiledPass for use with VkMemoryBarrier
-            compiledPasses[dep.to].dependencies.push_back({
-                dep.from,
-                dep.to,
-                dep.srcStageMask,
-                dep.dstStageMask,
-                dep.srcAccessMask,
-                dep.dstAccessMask,
-                VK_DEPENDENCY_BY_REGION_BIT
-            });
+            // Pass-level execution dependency: store for emission as VkMemoryBarrier at execution time
+            PassLevelDependency passDep{};
+            passDep.fromPass = dep.from;
+            passDep.toPass = dep.to;
+            passDep.srcStageMask = dep.srcStageMask;
+            passDep.dstStageMask = dep.dstStageMask;
+            passDep.srcAccessMask = dep.srcAccessMask;
+            passDep.dstAccessMask = dep.dstAccessMask;
+            passDep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+            
+            compiledPasses[dep.to].passLevelDependencies.push_back(passDep);
         }
     }
 }
@@ -305,8 +301,9 @@ void RenderGraph::createRenderPasses(VkDevice dev) {
         subpass.pDepthStencilAttachment = compiled.depthRef.attachment != VK_ATTACHMENT_UNUSED ? &compiled.depthRef : nullptr;
         
         rpInfo.pSubpasses = &subpass;
-        rpInfo.dependencyCount = static_cast<uint32_t>(compiled.dependencies.size());
-        rpInfo.pDependencies = compiled.dependencies.data();
+        // No subpass dependencies - all synchronization is done via vkCmdPipelineBarrier
+        rpInfo.dependencyCount = 0;
+        rpInfo.pDependencies = nullptr;
         
         if (vkCreateRenderPass(device, &rpInfo, nullptr, &compiled.vkRenderPass) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create render pass: " + compiled.definition.name);
@@ -364,18 +361,73 @@ void RenderGraph::createFramebuffers(VkDevice dev, VkExtent2D swapchainExtent) {
     }
 }
 
-void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass) {
-    // Ejecutar barreras de imagen pre-pass si existen
-    if (!pass.prePassBarriers.empty()) {
+void RenderGraph::recordBarriers(VkCommandBuffer cmd, const CompiledPass& pass, const ResourceRegistry& registry) {
+    // Compute combined stage masks from all barriers for vkCmdPipelineBarrier
+    VkPipelineStageFlags combinedSrcStage = 0;
+    VkPipelineStageFlags combinedDstStage = 0;
+    
+    // Process pass-level dependencies (emit as VkMemoryBarrier)
+    std::vector<VkMemoryBarrier> memoryBarriers;
+    for (const auto& dep : pass.passLevelDependencies) {
+        VkMemoryBarrier memBarrier{};
+        memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        memBarrier.srcAccessMask = dep.srcAccessMask;
+        memBarrier.dstAccessMask = dep.dstAccessMask;
+        memoryBarriers.push_back(memBarrier);
+        
+        combinedSrcStage |= dep.srcStageMask;
+        combinedDstStage |= dep.dstStageMask;
+    }
+    
+    // Process resource-specific barriers (resolve image at runtime)
+    std::vector<VkImageMemoryBarrier> imageBarriers;
+    for (const auto& pending : pass.pendingResourceBarriers) {
+        VkImage image = registry.getImage(pending.resourceName);
+        if (image == VK_NULL_HANDLE) {
+            throw std::runtime_error("Resource barrier references resource with VK_NULL_HANDLE: " + pending.resourceName);
+        }
+        
+        const ResourceHandle* res = registry.getResource(pending.resourceName);
+        if (!res) {
+            throw std::runtime_error("Resource barrier references unknown resource: " + pending.resourceName);
+        }
+        
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = pending.srcAccessMask;
+        barrier.dstAccessMask = pending.dstAccessMask;
+        barrier.oldLayout = pending.oldLayout;
+        barrier.newLayout = pending.newLayout;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image;
+        barrier.subresourceRange = {
+            pending.aspectMask,
+            0, res->mipLevels,
+            0, res->arrayLayers
+        };
+        imageBarriers.push_back(barrier);
+        
+        combinedSrcStage |= pending.srcStageMask;
+        combinedDstStage |= pending.dstStageMask;
+    }
+    
+    // Emit barriers if any exist
+    if (!memoryBarriers.empty() || !imageBarriers.empty()) {
+        // Use combined stage masks, or fallback to ALL_COMMANDS if no stages were specified
+        VkPipelineStageFlags srcStage = combinedSrcStage != 0 ? combinedSrcStage : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        VkPipelineStageFlags dstStage = combinedDstStage != 0 ? combinedDstStage : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        
         vkCmdPipelineBarrier(
             cmd,
-            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            srcStage,
+            dstStage,
             0,
+            static_cast<uint32_t>(memoryBarriers.size()),
+            memoryBarriers.data(),
             0, nullptr,
-            0, nullptr,
-            static_cast<uint32_t>(pass.prePassBarriers.size()),
-            pass.prePassBarriers.data()
+            static_cast<uint32_t>(imageBarriers.size()),
+            imageBarriers.data()
         );
     }
 }
@@ -396,8 +448,13 @@ void RenderGraph::execute(VkCommandBuffer cmd, ResourceRegistry& registry, uint3
                                      compiled.definition.name + "'. Call build() before execute().");
         }
         
+        // Skip rendering if extent is zero (e.g., minimized window)
+        if (compiled.extent.width == 0 || compiled.extent.height == 0) {
+            continue;
+        }
+        
         // 1. Record barreras de transición
-        recordBarriers(cmd, compiled);
+        recordBarriers(cmd, compiled, registry);
         
         // 2. Begin render pass
         VkRenderPassBeginInfo rpBegin{};
